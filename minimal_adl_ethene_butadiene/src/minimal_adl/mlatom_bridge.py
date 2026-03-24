@@ -17,7 +17,7 @@ def import_mlatom():
         import mlatom as ml
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "当前环境无法导入 MLatom。请在 PBS 集群的 aiqm 环境中运行本项目。"
+            "当前环境无法导入 `mlatom`。请先激活 `ADL_env`，并使用 `import mlatom as ml` 方式检查安装。"
         ) from exc
     return ml
 
@@ -181,4 +181,3 @@ def build_molecular_database_from_geometry_manifest(manifest_path: str | Path):
         molecular_database += molecule
 
     return molecular_database
-

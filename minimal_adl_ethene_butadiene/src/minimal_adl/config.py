@@ -9,7 +9,7 @@ def _import_yaml():
         import yaml
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "当前环境缺少 PyYAML。请先在 aiqm 环境中安装 `PyYAML`，再运行本项目脚本。"
+            "当前环境缺少 PyYAML。请先在 `ADL_env` 环境中安装 `PyYAML`，再运行本项目脚本。"
         ) from exc
     return yaml
 
@@ -55,4 +55,3 @@ def get_method_config(config: dict[str, Any], method_key: str) -> dict[str, Any]
     if method_key not in methods:
         raise KeyError(f"配置文件中找不到方法 `{method_key}`。")
     return methods[method_key]
-

@@ -62,7 +62,7 @@ cluster:
   ppn: 4
   walltime: 12:00:00
   conda_init: source ~/.bashrc
-  conda_env: aiqm
+  conda_env: ADL_env
   python_command: python
   poll_interval_seconds: 30
   poll_timeout_seconds: 86400
@@ -90,26 +90,30 @@ cluster:
   env_blocks:
     baseline:
       - source ~/.bashrc
-      - conda activate aiqm
+      - conda activate ADL_env
+      - export PATH=/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
+      - echo "Python path: $(which python)"
+      - echo "xTB path: $(which xtb)"
     target:
       - source /share/apps/gaussian/g16-env.sh
       - source /share/env/ips2018u1.env
       - source ~/.bashrc
-      - conda activate aiqm
-      - export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:$PATH
+      - conda activate ADL_env
+      - export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
       - export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
       - export GAUSS_SCRDIR=/tmp/$USER/$PBS_JOBID
       - mkdir -p "$GAUSS_SCRDIR"
       - echo "Python path: $(which python)"
+      - echo "xTB path: $(which xtb)"
       - echo "GAUSS_SCRDIR: $GAUSS_SCRDIR"
     training:
       - source ~/.bashrc
-      - conda activate aiqm
+      - conda activate ADL_env
       - echo "Python path: $(which python)"
       - nvidia-smi || true
     uncertainty:
       - source ~/.bashrc
-      - conda activate aiqm
+      - conda activate ADL_env
       - echo "Python path: $(which python)"
       - nvidia-smi || true
   cleanup_blocks:

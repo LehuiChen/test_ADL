@@ -24,7 +24,8 @@
 - 目录结构清晰
 - 所有脚本职责单一
 - 配置集中在 `configs/base.yaml`
-- 默认支持 `PBS + aiqm` 环境
+- 默认支持 `PBS + ADL_env` 环境
+- 复用系统安装的 `xtb` 和 `g16`
 - 中文注释较完整
 - 优先保证“能跑通”而不是“一步做到最复杂”
 
@@ -106,7 +107,13 @@ python scripts/active_learning_loop.py --config configs/base.yaml --manifest dat
 - Gaussian `wB97X-D/6-31G*` 标注：CPU 队列
 - `ANI` 训练与不确定性评估：GPU 队列 `GPU`
 
-Gaussian 继续通过 `MLatom` 直接调用，但 PBS 模板已经内置了你集群上需要的环境前置，例如 `g16-env.sh`、`ips2018u1.env`、`aiqm`、`dftd4bin` 和 `GAUSS_SCRDIR`。
+Gaussian 继续通过 `MLatom` 直接调用，但 PBS 模板已经内置了你集群上需要的环境前置，例如 `g16-env.sh`、`ips2018u1.env`、`ADL_env`、系统 `xtb` 路径、`dftd4bin` 和 `GAUSS_SCRDIR`。
+
+当前推荐的新环境是 `ADL_env`：
+
+- Python 包放在 `ADL_env`
+- `xtb` 直接复用系统路径 `/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
+- Gaussian 继续复用系统安装 `/share/apps/gaussian/g16/g16`
 
 更详细的说明请看：
 

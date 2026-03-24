@@ -86,14 +86,16 @@ minimal_adl_ethene_butadiene/
 
 建议在你的 PBS 集群环境中准备：
 
-- conda 环境：`aiqm`
+- conda 环境：`ADL_env`
 - Python 包：
   - `numpy`
   - `PyYAML`
-  - `MLatom`
+  - `mlatom`
   - `matplotlib`（可选，仅用于后续扩展画图）
+  - `torch`
+  - `torchani`
 - 外部程序：
-  - `xtb`
+  - 系统 `xtb`
   - Gaussian `g16`
 
 当前配置默认假定你的集群环境满足下面这些命令或路径：
@@ -101,10 +103,26 @@ minimal_adl_ethene_butadiene/
 - `source /share/apps/gaussian/g16-env.sh`
 - `source /share/env/ips2018u1.env`
 - `source ~/.bashrc`
-- `conda activate aiqm`
-- `export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:$PATH`
+- `conda activate ADL_env`
+- `export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH`
 - `export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4`
 - `export GAUSS_SCRDIR=/tmp/$USER/$PBS_JOBID`
+
+推荐的新环境安装命令是：
+
+```bash
+conda create -n ADL_env python=3.10 -y
+conda activate ADL_env
+conda install -y numpy scipy pyyaml matplotlib
+conda install -y pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install mlatom torchani
+```
+
+注意：
+
+- `xtb` 不通过 conda 安装，直接复用系统路径 `/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
+- Python 里导入 MLatom 的正确写法是 `import mlatom as ml`
 
 ## 5. CPU / GPU 任务分工
 
@@ -159,7 +177,7 @@ python scripts/active_learning_loop.py --config configs/base.yaml --manifest dat
 
 - 这个项目的中文注释是按“本科生能跟着看懂”的标准写的，所以更偏重可读性，而不是最短代码。
 - 当前仓库外层的原始 `adl/` 与 `static/` 目录没有被改动，这个子项目是独立的干净实现。
-- 我本地这台机器没有 `PyYAML / MLatom / xtb / Gaussian`，所以这里做的是“代码结构 + PBS 接口”层面的实现；真正跑作业时，请在你的 `aiqm` 环境中执行。
+- 我本地这台机器没有 `PyYAML / mlatom / xtb / Gaussian`，所以这里做的是“代码结构 + PBS 接口”层面的实现；真正跑作业时，请在你的 `ADL_env` 环境中执行。
 
 如果你想直接按命令一步步跑第一轮，可以看：
 

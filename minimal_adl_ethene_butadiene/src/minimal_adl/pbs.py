@@ -38,9 +38,9 @@ def build_pbs_script(
     """根据配置生成 PBS 作业脚本。
 
     这一版支持按任务类型插入不同的环境前置：
-    - baseline: 只激活 aiqm
-    - target: 加载 Gaussian、dftd4 和 GAUSS_SCRDIR
-    - training/uncertainty: 进入 GPU 队列并激活 aiqm
+    - baseline: 激活 ADL_env，并显式加入系统 xtb 路径
+    - target: 加载 Gaussian、dftd4、GAUSS_SCRDIR，并保留系统 xtb 路径
+    - training/uncertainty: 进入 GPU 队列并激活 ADL_env
     """
 
     workdir = Path(workdir).resolve()
@@ -59,7 +59,7 @@ def build_pbs_script(
 
     if not setup_lines:
         conda_init = cluster_config.get("conda_init", "source ~/.bashrc")
-        conda_env = cluster_config.get("conda_env", "aiqm")
+        conda_env = cluster_config.get("conda_env", "ADL_env")
         setup_lines = [conda_init, f"conda activate {conda_env}"]
 
     lines = [

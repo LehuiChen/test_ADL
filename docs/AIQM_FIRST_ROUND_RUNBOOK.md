@@ -1,4 +1,4 @@
-# AIQM 集群第一轮运行清单
+# AIQM 集群第一轮运行清单（ADL_env 版）
 
 这份清单对应当前仓库里的最小版项目：
 
@@ -9,7 +9,11 @@
 - 主模型：`ANI`
 - 训练设备：`cuda`
 
-这份清单假设你是在 `aiqm` 集群的 Linux shell 里操作，而不是在当前这台 Windows 机器上操作。
+这份清单假设你是在集群的 Linux shell 里操作，而不是在当前这台 Windows 机器上操作。
+集群上推荐的新 conda 环境名是 `ADL_env`，并且直接复用系统 `xtb`：
+
+- `/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
+- `/share/apps/gaussian/g16/g16`
 
 ## 0. 一次性进入项目目录
 
@@ -21,16 +25,40 @@ cd "$PROJECT_DIR/minimal_adl_ethene_butadiene"
 pwd
 ```
 
-## 1. 激活环境并检查依赖
+## 1. 创建并激活 ADL_env
 
 ```bash
 source ~/.bashrc
-conda activate aiqm
+conda create -n ADL_env python=3.10 -y
+conda activate ADL_env
+
+conda install -y numpy scipy pyyaml matplotlib
+conda install -y pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
+
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install mlatom torchani
+```
+
+## 2. 加载系统程序路径并检查依赖
+
+```bash
+source /share/apps/gaussian/g16-env.sh
+source /share/env/ips2018u1.env
+source ~/.bashrc
+conda activate ADL_env
+export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
+export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
+
 which python
 python --version
 python -c "import yaml; print('PyYAML OK')"
-python -c "import MLatom; print('MLatom OK')"
+python -c "import mlatom as ml; print('mlatom OK')"
+python -c "import torch; print(torch.cuda.is_available())"
+python -c "import torchani; print('torchani OK')"
 which xtb
+xtb --version
+which Gau_Mlatom.py
+which g16
 ls /share/apps/gaussian/g16/g16
 ```
 
@@ -40,7 +68,7 @@ ls /share/apps/gaussian/g16/g16
 nvidia-smi
 ```
 
-## 2. 先检查当前配置
+## 3. 先检查当前配置
 
 ```bash
 sed -n '1,220p' configs/base.yaml
@@ -53,7 +81,7 @@ sed -n '1,220p' configs/base.yaml
 - `cluster.resources_by_method.training.queue: GPU`
 - `cluster.resources_by_method.uncertainty.queue: GPU`
 
-## 3. 生成初始几何池
+## 4. 生成初始几何池
 
 默认会生成 400 个几何：
 
@@ -75,7 +103,7 @@ print('first_sample =', data[0]['sample_id'])
 PY
 ```
 
-## 4. 进行第 0 轮初始选点
+## 5. 进行第 0 轮初始选点
 
 这一步会按论文一致的默认参数，从几何池里选出 250 个初始样本：
 
@@ -99,7 +127,25 @@ print('first_sample =', data[0]['sample_id'])
 PY
 ```
 
-## 5. 提交 baseline 标注任务
+## 6. 先做一个最小的 mlatom + xtb 联通检查
+
+```bash
+python - <<'PY'
+import mlatom as ml
+m = ml.data.molecule()
+m.load('geometries/seed/da_eqmol_seed.xyz', format='xyz')
+method = ml.models.methods(method='GFN2-xTB', nthreads=4)
+method.predict(
+    molecule=m,
+    calculate_energy=True,
+    calculate_energy_gradients=True,
+    calculate_hessian=False,
+)
+print('energy =', m.energy)
+PY
+```
+
+## 7. 提交 baseline 标注任务
 
 这一步默认走 CPU 队列：
 
@@ -129,11 +175,11 @@ if files:
     data = json.loads(files[0].read_text(encoding='utf-8'))
     print('sample_id =', data.get('sample_id'))
     print('success =', data.get('success'))
-    print('energy =', data.get('energy_hartree'))
+    print('energy =', data.get('energy'))
 PY
 ```
 
-## 6. 提交 target 标注任务
+## 8. 提交 target 标注任务
 
 这一步也走 CPU 队列，但 PBS 脚本会自动前置 Gaussian 环境：
 
@@ -163,7 +209,7 @@ if files:
     data = json.loads(files[0].read_text(encoding='utf-8'))
     print('sample_id =', data.get('sample_id'))
     print('success =', data.get('success'))
-    print('energy =', data.get('energy_hartree'))
+    print('energy =', data.get('energy'))
 PY
 ```
 
@@ -173,7 +219,7 @@ PY
 find labels/gaussian -name stderr.log | head -n 3 | xargs -I {} sh -c 'echo "===== {} ====="; tail -n 30 "{}"'
 ```
 
-## 7. 构建 delta 数据集
+## 9. 构建 delta 数据集
 
 ```bash
 python scripts/build_delta_dataset.py \
@@ -199,7 +245,7 @@ print('delta_F shape =', arr['delta_F'].shape)
 PY
 ```
 
-## 8. 提交主模型训练
+## 10. 提交主模型训练
 
 这一步默认走 GPU 队列 `GPU`：
 
@@ -216,7 +262,7 @@ cat models/train_main_status.json
 ls models
 ```
 
-## 9. 提交辅助模型训练
+## 11. 提交辅助模型训练
 
 这一步也走 GPU 队列 `GPU`：
 
@@ -233,7 +279,7 @@ cat models/train_aux_status.json
 ls models
 ```
 
-## 10. 评估不确定性
+## 12. 评估不确定性
 
 ```bash
 python scripts/evaluate_uncertainty.py \
@@ -257,7 +303,7 @@ print('first_uq =', data['samples'][0]['uncertainty'])
 PY
 ```
 
-## 11. 选出下一轮样本
+## 13. 选出下一轮样本
 
 这一步会按当前不确定性结果选出下一轮最多 100 个点：
 
@@ -284,7 +330,7 @@ if data:
 PY
 ```
 
-## 12. 如果你想继续第二轮
+## 14. 如果你想继续第二轮
 
 把第 11 步选出来的清单继续拿去做标注：
 
@@ -300,7 +346,7 @@ python scripts/run_target_labels.py \
 
 然后重新构建数据集、重新训练、重新做不确定性评估。
 
-## 13. 初学者最常用的排错命令
+## 15. 初学者最常用的排错命令
 
 看最近的训练状态文件：
 
@@ -328,7 +374,7 @@ tail -n 50 labels/gaussian/<sample_id>/stdout.log
 tail -n 50 labels/gaussian/<sample_id>/stderr.log
 ```
 
-## 14. 这一版哪些地方是论文一致，哪些地方是工程简化
+## 16. 这一版哪些地方是论文一致，哪些地方是工程简化
 
 论文一致：
 
