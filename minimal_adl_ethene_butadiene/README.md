@@ -116,8 +116,14 @@ minimal_adl_ethene_butadiene/
 ```bash
 conda create -n ADL_env python=3.10 -y
 conda activate ADL_env
-conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja joblib scikit-learn
+conda install -y -n base conda-libmamba-solver
+conda config --set solver libmamba
+
+conda install -y -c conda-forge numpy scipy pyyaml matplotlib
+conda install -y -c conda-forge joblib scikit-learn h5py pyh5md statsmodels tqdm
 conda install -y -c pytorch pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 cudatoolkit=11.3
+conda install -y -c conda-forge pandas pyarrow rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja
+
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install mlatom
 python -m pip install "torchani==2.2" --no-deps
@@ -128,8 +134,16 @@ python -m pip install "torchani==2.2" --no-deps
 - `xtb` 不通过 conda 安装，直接复用系统路径 `/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
 - Python 里导入 MLatom 的正确写法是 `import mlatom as ml`
 - 在你的集群环境里，`pip install mlatom torchani` 可能会触发 `h5py` 和 `pyarrow` 源码编译；因此推荐先用 `conda-forge` 装好这些二进制依赖，再用 `pip` 安装 `mlatom` 和 `torchani`
+- `conda` 如果长时间卡在 `Solving environment`，优先启用 `libmamba`，并按上面这种“小批量分阶段安装”的顺序来
 - 如果你的 GPU 节点驱动和你提供的一样是 `470.94`，优先使用上面这套老版本 GPU 兼容栈，不要直接装 `pytorch-cuda=12.1`
 - 在登录节点上 `torch.cuda.is_available()` 返回 `False` 是正常的，请在 `gpu1` 这类 GPU 节点上验证 CUDA
+
+安装完成后，建议先运行环境自检脚本：
+
+```bash
+python scripts/check_environment.py --expect-gpu
+python scripts/check_environment.py --expect-gpu --test-mlatom-xtb
+```
 
 ## 5. CPU / GPU 任务分工
 
@@ -181,6 +195,7 @@ python scripts/active_learning_loop.py --config configs/base.yaml --manifest dat
 - `run_xtb_labels.py` 和 `run_target_labels.py` 默认就是 `--submit-mode pbs`
 - `train_main_model.py`、`train_aux_model.py`、`evaluate_uncertainty.py` 新增了 `--submit-mode {local,pbs}`
 - 当训练和不确定性脚本使用 `--submit-mode pbs` 时，会自动走 `cluster.resources_by_method.training` 或 `cluster.resources_by_method.uncertainty` 的配置
+- 初次配环境时，强烈建议先跑 `scripts/check_environment.py`，再进入大规模标注或训练
 
 ## 8. 重要提醒
 

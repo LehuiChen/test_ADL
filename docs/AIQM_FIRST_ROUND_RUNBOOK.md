@@ -33,8 +33,13 @@ source ~/.bashrc
 conda create -n ADL_env python=3.10 -y
 conda activate ADL_env
 
-conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja joblib scikit-learn
+conda install -y -n base conda-libmamba-solver
+conda config --set solver libmamba
+
+conda install -y -c conda-forge numpy scipy pyyaml matplotlib
+conda install -y -c conda-forge joblib scikit-learn h5py pyh5md statsmodels tqdm
 conda install -y -c pytorch pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 cudatoolkit=11.3
+conda install -y -c conda-forge pandas pyarrow rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja
 
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install mlatom
@@ -47,6 +52,7 @@ python -m pip install "torchani==2.2" --no-deps
 - 这里故意使用老驱动兼容的 GPU 栈：`PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`
 - `torchani` 放到最后并使用 `--no-deps`，前提是上面的依赖已经通过 conda 装好
 - 你当前 GPU 节点驱动如果是 `470.94`，不要安装 `pytorch-cuda=12.1`
+- 如果 `conda` 长时间卡在 `Solving environment`，不要把所有包塞进一条命令里，按这里的分阶段安装继续即可
 
 ## 2. 加载系统程序路径并检查依赖
 
@@ -81,6 +87,17 @@ nvidia-smi
 
 - `torch.cuda.is_available()` 请只在 `gpu1` 这类 GPU 节点上看
 - 在登录节点上看到 `False` 是正常现象
+
+## 2.1 运行环境自检脚本
+
+建议先跑一遍项目自带的检查脚本：
+
+```bash
+python scripts/check_environment.py --expect-gpu
+python scripts/check_environment.py --expect-gpu --test-mlatom-xtb
+```
+
+如果你只是在登录节点上排查基础依赖，也可以去掉 `--expect-gpu`。
 
 ## 3. 先检查当前配置
 
