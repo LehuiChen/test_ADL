@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+import traceback
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from .geometry import load_manifest
+from .io_utils import read_json, write_json
+
+
+def import_mlatom():
+    """延迟导入 MLatom，避免在当前桌面环境中直接报错。"""
+
+    try:
+        import mlatom as ml
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "当前环境无法导入 MLatom。请在 PBS 集群的 aiqm 环境中运行本项目。"
+        ) from exc
+    return ml
+
+
+def detect_geometry_format(geometry_path: str | Path) -> str:
+    """根据文件后缀判断 MLatom 读取格式。"""
+
+    suffix = Path(geometry_path).suffix.lower()
+    if suffix == ".xyz":
+        return "xyz"
+    if suffix == ".json":
+        return "json"
+    raise ValueError(f"无法识别的几何文件格式：{geometry_path}")
+
+
+def create_mlatom_method(method_config: dict[str, Any]):
+    """根据配置创建一个 MLatom 方法对象。"""
+
+    ml = import_mlatom()
+    kwargs = {
+        "method": method_config["method"],
+        "nthreads": int(method_config.get("nthreads", 1)),
+        "save_files_in_current_directory": bool(method_config.get("save_files_in_current_directory", False)),
+    }
+    if method_config.get("program"):
+        kwargs["program"] = method_config["program"]
+    return ml.models.methods(**kwargs)
+
+
+def label_geometry_with_mlatom(
+    *,
+    geometry_path: str | Path,
+    method_config: dict[str, Any],
+) -> dict[str, Any]:
+    """调用 MLatom 对一个几何做单点能和梯度计算。"""
+
+    ml = import_mlatom()
+    molecule = ml.data.molecule()
+    molecule.load(str(geometry_path), format=detect_geometry_format(geometry_path))
+
+    method = create_mlatom_method(method_config)
+    method.predict(
+        molecule=molecule,
+        calculate_energy=True,
+        calculate_energy_gradients=True,
+        calculate_hessian=False,
+    )
+
+    energy = float(molecule.energy)
+    gradients = np.asarray(molecule.get_xyz_vectorial_properties("energy_gradients"), dtype=float)
+    forces = -gradients
+
+    return {
+        "success": True,
+        "method": method_config["method"],
+        "program": method_config.get("program"),
+        "geometry_file": str(Path(geometry_path).resolve()),
+        "energy": energy,
+        "energy_gradients": gradients.tolist(),
+        "forces": forces.tolist(),
+    }
+
+
+def run_and_save_label_job(
+    *,
+    geometry_path: str | Path,
+    method_config: dict[str, Any],
+    output_dir: str | Path,
+    method_key: str,
+) -> dict[str, Any]:
+    """执行一个标注任务，并把成功或失败状态写入指定目录。"""
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    status_path = output_dir / "status.json"
+    label_path = output_dir / "label.json"
+
+    try:
+        payload = label_geometry_with_mlatom(
+            geometry_path=geometry_path,
+            method_config=method_config,
+        )
+        payload["method_key"] = method_key
+        write_json(label_path, payload)
+        write_json(
+            status_path,
+            {
+                "success": True,
+                "method_key": method_key,
+                "geometry_file": str(Path(geometry_path).resolve()),
+                "label_file": str(label_path.resolve()),
+            },
+        )
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        error_payload = {
+            "success": False,
+            "method_key": method_key,
+            "geometry_file": str(Path(geometry_path).resolve()),
+            "error_type": type(exc).__name__,
+            "error_message": str(exc),
+            "traceback": traceback.format_exc(),
+        }
+        write_json(status_path, error_payload)
+        write_json(label_path, error_payload)
+        raise
+
+
+def build_molecular_database_from_dataset(
+    *,
+    npz_path: str | Path,
+    metadata_path: str | Path,
+):
+    """把统一数据集转换成 MLatom 可训练的 molecular_database。"""
+
+    ml = import_mlatom()
+    dataset = np.load(npz_path, allow_pickle=True)
+    metadata = read_json(metadata_path)["samples"]
+
+    molecular_database = ml.data.molecular_database()
+    geometry_files = [entry["geometry_file"] for entry in metadata]
+
+    for index, geometry_file in enumerate(geometry_files):
+        molecule = ml.data.molecule()
+        molecule.load(str(geometry_file), format=detect_geometry_format(geometry_file))
+
+        sample_id = str(dataset["sample_ids"][index])
+        molecule.id = sample_id
+        molecule.reference_energy = float(dataset["E_target"][index])
+        molecule.baseline_energy = float(dataset["E_baseline"][index])
+        molecule.delta_energy = float(dataset["delta_E"][index])
+        molecule.energy = float(dataset["E_target"][index])
+
+        reference_force = np.asarray(dataset["F_target"][index], dtype=float)
+        baseline_force = np.asarray(dataset["F_baseline"][index], dtype=float)
+        delta_force = np.asarray(dataset["delta_F"][index], dtype=float)
+
+        molecule.add_xyz_vectorial_property(-reference_force, "reference_energy_gradients")
+        molecule.add_xyz_vectorial_property(-baseline_force, "baseline_energy_gradients")
+        molecule.add_xyz_vectorial_property(-delta_force, "delta_energy_gradients")
+        molecular_database += molecule
+
+    return molecular_database
+
+
+def build_molecular_database_from_geometry_manifest(manifest_path: str | Path):
+    """把未标注的几何池转成 MLatom 的 molecular_database。"""
+
+    ml = import_mlatom()
+    entries = load_manifest(manifest_path)
+    molecular_database = ml.data.molecular_database()
+    manifest_root = Path(manifest_path).resolve().parent.parent.parent
+
+    for entry in entries:
+        geometry_file = Path(entry["geometry_file"])
+        if not geometry_file.is_absolute():
+            geometry_file = manifest_root / geometry_file
+        molecule = ml.data.molecule()
+        molecule.load(str(geometry_file), format=detect_geometry_format(geometry_file))
+        molecule.id = entry["sample_id"]
+        molecular_database += molecule
+
+    return molecular_database
+

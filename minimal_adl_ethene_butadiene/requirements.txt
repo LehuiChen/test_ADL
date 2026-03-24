@@ -1,0 +1,5 @@
+numpy>=1.24
+PyYAML>=6.0
+MLatom>=3.18
+matplotlib>=3.7
+
