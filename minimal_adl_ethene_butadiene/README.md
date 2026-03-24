@@ -113,16 +113,18 @@ minimal_adl_ethene_butadiene/
 ```bash
 conda create -n ADL_env python=3.10 -y
 conda activate ADL_env
-conda install -y numpy scipy pyyaml matplotlib
+conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja
 conda install -y pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
 python -m pip install --upgrade pip setuptools wheel
-python -m pip install mlatom torchani
+python -m pip install mlatom
+python -m pip install torchani --no-deps
 ```
 
 注意：
 
 - `xtb` 不通过 conda 安装，直接复用系统路径 `/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
 - Python 里导入 MLatom 的正确写法是 `import mlatom as ml`
+- 在你的集群环境里，`pip install mlatom torchani` 可能会触发 `h5py` 和 `pyarrow` 源码编译；因此推荐先用 `conda-forge` 装好这些二进制依赖，再用 `pip` 安装 `mlatom` 和 `torchani`
 
 ## 5. CPU / GPU 任务分工
 

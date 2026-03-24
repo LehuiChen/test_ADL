@@ -32,12 +32,18 @@ source ~/.bashrc
 conda create -n ADL_env python=3.10 -y
 conda activate ADL_env
 
-conda install -y numpy scipy pyyaml matplotlib
+conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja
 conda install -y pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
 
 python -m pip install --upgrade pip setuptools wheel
-python -m pip install mlatom torchani
+python -m pip install mlatom
+python -m pip install torchani --no-deps
 ```
+
+说明：
+
+- 这里故意把 `h5py`、`pyarrow`、`pandas` 等重型依赖放到 `conda-forge` 安装，避免 `pip` 在集群上源码编译失败
+- `torchani` 放到最后并使用 `--no-deps`，前提是上面的依赖已经通过 conda 装好
 
 ## 2. 加载系统程序路径并检查依赖
 
