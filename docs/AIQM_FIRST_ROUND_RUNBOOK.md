@@ -8,6 +8,7 @@
 - target：`wB97X-D/6-31G*`
 - 主模型：`ANI`
 - 训练设备：`cuda`
+- 推荐兼容栈：`PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`
 
 这份清单假设你是在集群的 Linux shell 里操作，而不是在当前这台 Windows 机器上操作。
 集群上推荐的新 conda 环境名是 `ADL_env`，并且直接复用系统 `xtb`：
@@ -32,18 +33,20 @@ source ~/.bashrc
 conda create -n ADL_env python=3.10 -y
 conda activate ADL_env
 
-conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja
-conda install -y pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
+conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja joblib scikit-learn
+conda install -y -c pytorch pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 cudatoolkit=11.3
 
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install mlatom
-python -m pip install torchani --no-deps
+python -m pip install "torchani==2.2" --no-deps
 ```
 
 说明：
 
 - 这里故意把 `h5py`、`pyarrow`、`pandas` 等重型依赖放到 `conda-forge` 安装，避免 `pip` 在集群上源码编译失败
+- 这里故意使用老驱动兼容的 GPU 栈：`PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`
 - `torchani` 放到最后并使用 `--no-deps`，前提是上面的依赖已经通过 conda 装好
+- 你当前 GPU 节点驱动如果是 `470.94`，不要安装 `pytorch-cuda=12.1`
 
 ## 2. 加载系统程序路径并检查依赖
 
@@ -59,7 +62,7 @@ which python
 python --version
 python -c "import yaml; print('PyYAML OK')"
 python -c "import mlatom as ml; print('mlatom OK')"
-python -c "import torch; print(torch.cuda.is_available())"
+python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available())"
 python -c "import torchani; print('torchani OK')"
 which xtb
 xtb --version
@@ -73,6 +76,11 @@ ls /share/apps/gaussian/g16/g16
 ```bash
 nvidia-smi
 ```
+
+注意：
+
+- `torch.cuda.is_available()` 请只在 `gpu1` 这类 GPU 节点上看
+- 在登录节点上看到 `False` 是正常现象
 
 ## 3. 先检查当前配置
 

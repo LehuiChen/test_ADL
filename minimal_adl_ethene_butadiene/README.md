@@ -7,6 +7,7 @@
 - target：`wB97X-D/6-31G*`
 - 默认训练后端：`MLatom ANI`
 - 默认训练设备：`cuda`
+- 推荐 GPU 兼容栈：`PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`
 - 学习目标：
   - `delta_E = E_target - E_baseline`
   - `delta_F = F_target - F_baseline`
@@ -94,6 +95,8 @@ minimal_adl_ethene_butadiene/
   - `matplotlib`（可选，仅用于后续扩展画图）
   - `torch`
   - `torchani`
+  - `joblib`
+  - `scikit-learn`
 - 外部程序：
   - 系统 `xtb`
   - Gaussian `g16`
@@ -113,11 +116,11 @@ minimal_adl_ethene_butadiene/
 ```bash
 conda create -n ADL_env python=3.10 -y
 conda activate ADL_env
-conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja
-conda install -y pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
+conda install -y -c conda-forge numpy scipy pyyaml matplotlib h5py pyarrow pandas statsmodels tqdm rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja joblib scikit-learn
+conda install -y -c pytorch pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 cudatoolkit=11.3
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install mlatom
-python -m pip install torchani --no-deps
+python -m pip install "torchani==2.2" --no-deps
 ```
 
 注意：
@@ -125,6 +128,8 @@ python -m pip install torchani --no-deps
 - `xtb` 不通过 conda 安装，直接复用系统路径 `/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
 - Python 里导入 MLatom 的正确写法是 `import mlatom as ml`
 - 在你的集群环境里，`pip install mlatom torchani` 可能会触发 `h5py` 和 `pyarrow` 源码编译；因此推荐先用 `conda-forge` 装好这些二进制依赖，再用 `pip` 安装 `mlatom` 和 `torchani`
+- 如果你的 GPU 节点驱动和你提供的一样是 `470.94`，优先使用上面这套老版本 GPU 兼容栈，不要直接装 `pytorch-cuda=12.1`
+- 在登录节点上 `torch.cuda.is_available()` 返回 `False` 是正常的，请在 `gpu1` 这类 GPU 节点上验证 CUDA
 
 ## 5. CPU / GPU 任务分工
 
@@ -137,6 +142,8 @@ python -m pip install torchani --no-deps
 - 不确定性评估：GPU 队列 `GPU`
 
 也就是说，Gaussian 不占用 RTX3080；RTX3080 主要用于 `ANI` 训练和预测。
+
+如果你的 GPU 驱动版本较老，又想优先跑通工作流，也可以把 `configs/base.yaml` 里的 `training.ml_model_type` 改成 `KREG`，并把 `training.device` 改成 `cpu`。
 
 ## 6. 推荐执行顺序
 

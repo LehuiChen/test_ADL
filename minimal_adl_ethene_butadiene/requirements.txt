@@ -1,7 +1,9 @@
 # 说明：
 # 1. 系统 xtb 不通过 pip/conda 安装，直接复用 PBS 系统路径。
-# 2. GPU 训练所需的 torch / pytorch-cuda / torchani 建议按 README 中的 conda + pip 方案安装。
+# 2. GPU 训练所需的 torch / cudatoolkit / torchani 建议按 README 中的老驱动兼容方案安装。
 numpy>=1.24
 PyYAML>=6.0
 mlatom>=3.18
 matplotlib>=3.7
+joblib>=1.3
+scikit-learn>=1.3
