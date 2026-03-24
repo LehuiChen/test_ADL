@@ -53,6 +53,8 @@
 4. 训练：
    - 主模型：学习 `delta_E + delta_F`
    - 辅助模型：只学习 `delta_E`
+   - 默认后端：`ANI`
+   - 默认设备：`cuda`
 5. 评估不确定性：
    - `|pred_main_delta_E - pred_aux_delta_E|`
 6. 进行最小主动学习选点：
@@ -79,7 +81,8 @@
 - 不做整篇论文全部实验与分析图
 - target 从论文中的 `B3LYP/6-31G*` 改为 `wB97X-D/6-31G*`
 - 初始采样使用更容易理解和调试的教学版实现
-- 默认训练后端使用 `KREG`，便于先跑通；需要时可切回 `ANI`
+- 默认训练后端已经切为 `ANI + cuda`
+- 如果 GPU 暂时不可用，也可以手动切回 `KREG` 或 `cpu`
 
 ## 快速开始
 
@@ -91,15 +94,24 @@ python scripts/active_learning_loop.py --config configs/base.yaml --manifest dat
 python scripts/run_xtb_labels.py --config configs/base.yaml --manifest data/raw/initial_selection_manifest.json
 python scripts/run_target_labels.py --config configs/base.yaml --manifest data/raw/initial_selection_manifest.json
 python scripts/build_delta_dataset.py --config configs/base.yaml --manifest data/raw/initial_selection_manifest.json
-python scripts/train_main_model.py --config configs/base.yaml
-python scripts/train_aux_model.py --config configs/base.yaml
-python scripts/evaluate_uncertainty.py --config configs/base.yaml --manifest data/raw/geometry_pool_manifest.json
+python scripts/train_main_model.py --config configs/base.yaml --submit-mode pbs
+python scripts/train_aux_model.py --config configs/base.yaml --submit-mode pbs
+python scripts/evaluate_uncertainty.py --config configs/base.yaml --manifest data/raw/geometry_pool_manifest.json --submit-mode pbs
 python scripts/active_learning_loop.py --config configs/base.yaml --manifest data/raw/geometry_pool_manifest.json --round-index 1
 ```
+
+当前这版集群适配默认按下面方式分流：
+
+- `xtb` 标注：CPU 队列
+- Gaussian `wB97X-D/6-31G*` 标注：CPU 队列
+- `ANI` 训练与不确定性评估：GPU 队列 `GPU`
+
+Gaussian 继续通过 `MLatom` 直接调用，但 PBS 模板已经内置了你集群上需要的环境前置，例如 `g16-env.sh`、`ips2018u1.env`、`aiqm`、`dftd4bin` 和 `GAUSS_SCRDIR`。
 
 更详细的说明请看：
 
 - [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
+- [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
 
 ## Git 版本管理说明
 

@@ -1,10 +1,28 @@
 from __future__ import annotations
 
+import shlex
 import subprocess
 import time
 from pathlib import Path
+from typing import Iterable
 
 from .io_utils import ensure_dir
+
+
+def _normalize_shell_lines(block: str | Iterable[str] | None) -> list[str]:
+    """把配置中的 shell 片段统一转成命令列表。"""
+
+    if block is None:
+        return []
+    if isinstance(block, str):
+        return [line.strip() for line in block.splitlines() if line.strip()]
+    return [str(line).strip() for line in block if str(line).strip()]
+
+
+def build_shell_command(parts: list[str]) -> str:
+    """把命令参数安全拼接成 shell 命令。"""
+
+    return " ".join(shlex.quote(str(part)) for part in parts)
 
 
 def build_pbs_script(
@@ -17,19 +35,32 @@ def build_pbs_script(
     cluster_config: dict,
     method_key: str,
 ) -> str:
-    """根据配置生成 PBS 作业脚本。"""
+    """根据配置生成 PBS 作业脚本。
+
+    这一版支持按任务类型插入不同的环境前置：
+    - baseline: 只激活 aiqm
+    - target: 加载 Gaussian、dftd4 和 GAUSS_SCRDIR
+    - training/uncertainty: 进入 GPU 队列并激活 aiqm
+    """
 
     workdir = Path(workdir).resolve()
     stdout_path = Path(stdout_path).resolve()
     stderr_path = Path(stderr_path).resolve()
 
     resources = cluster_config.get("resources_by_method", {}).get(method_key, {})
-    queue = cluster_config.get("queue", "default")
+    queue = resources.get("queue", cluster_config.get("queue", "default"))
     nodes = int(resources.get("nodes", cluster_config.get("nodes", 1)))
     ppn = int(resources.get("ppn", cluster_config.get("ppn", 1)))
     walltime = resources.get("walltime", cluster_config.get("walltime", "01:00:00"))
-    conda_init = cluster_config.get("conda_init", "source ~/.bashrc")
-    conda_env = cluster_config.get("conda_env", "aiqm")
+    env_blocks = cluster_config.get("env_blocks", {})
+    cleanup_blocks = cluster_config.get("cleanup_blocks", {})
+    setup_lines = _normalize_shell_lines(env_blocks.get(method_key))
+    cleanup_lines = _normalize_shell_lines(cleanup_blocks.get(method_key))
+
+    if not setup_lines:
+        conda_init = cluster_config.get("conda_init", "source ~/.bashrc")
+        conda_env = cluster_config.get("conda_env", "aiqm")
+        setup_lines = [conda_init, f"conda activate {conda_env}"]
 
     lines = [
         "#!/bin/bash",
@@ -42,11 +73,22 @@ def build_pbs_script(
         "",
         "set -euo pipefail",
         f"cd {workdir}",
-        conda_init,
-        f"conda activate {conda_env}",
-        command,
         "",
     ]
+
+    if cleanup_lines:
+        lines.extend(
+            [
+                "cleanup_job() {",
+                *[f"  {line}" for line in cleanup_lines],
+                "}",
+                "trap cleanup_job EXIT",
+                "",
+            ]
+        )
+
+    lines.extend(setup_lines)
+    lines.extend(["", command, ""])
     return "\n".join(lines)
 
 
@@ -93,3 +135,69 @@ def write_pbs_script(script_path: str | Path, content: str) -> Path:
     script_path.write_text(content, encoding="utf-8")
     return script_path
 
+
+def launch_python_job(
+    *,
+    config: dict,
+    job_key: str,
+    submit_mode: str,
+    wait: bool,
+    script_path: str | Path,
+    script_args: list[str],
+    output_dir: str | Path,
+    status_file: str | Path,
+    job_name: str,
+) -> dict[str, str]:
+    """提交一个通用 Python 作业。
+
+    用于训练和不确定性评估任务，不和 label_jobs 混在一起。
+    """
+
+    project_root = Path(config["project_root"]).resolve()
+    cluster_config = config["cluster"]
+    python_command = cluster_config.get("python_command", "python")
+    output_dir = ensure_dir(output_dir)
+    status_file = Path(status_file).resolve()
+
+    if status_file.exists():
+        status_file.unlink()
+
+    command_parts = [python_command, str(Path(script_path).resolve()), *script_args]
+
+    if submit_mode == "local":
+        subprocess.run(command_parts, check=True, cwd=project_root)
+        return {
+            "status": "ran_locally",
+            "job_name": job_name,
+            "status_file": str(status_file),
+        }
+
+    if submit_mode != "pbs":
+        raise ValueError("submit_mode 只能是 `local` 或 `pbs`。")
+
+    pbs_text = build_pbs_script(
+        job_name=job_name,
+        workdir=project_root,
+        command=build_shell_command(command_parts),
+        stdout_path=Path(output_dir) / "stdout.log",
+        stderr_path=Path(output_dir) / "stderr.log",
+        cluster_config=cluster_config,
+        method_key=job_key,
+    )
+    script_file = write_pbs_script(Path(output_dir) / "job.pbs", pbs_text)
+    job_id = submit_job(script_file, submit_command=cluster_config.get("submit_command", "qsub"))
+
+    if wait:
+        wait_for_status_files(
+            [status_file],
+            timeout_seconds=int(cluster_config.get("poll_timeout_seconds", 86400)),
+            poll_interval_seconds=int(cluster_config.get("poll_interval_seconds", 30)),
+        )
+
+    return {
+        "status": "submitted",
+        "job_name": job_name,
+        "job_id": job_id,
+        "status_file": str(status_file),
+        "job_script": str(script_file),
+    }

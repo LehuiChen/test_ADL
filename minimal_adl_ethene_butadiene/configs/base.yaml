@@ -38,7 +38,7 @@ sampling:
 
 training:
   ml_model_type: ANI
-  device: cpu
+  device: cuda
   validation_set_fraction: 0.10
   model_name: delta_bundle
   main_model_stem: delta_main_model
@@ -61,15 +61,57 @@ cluster:
   nodes: 1
   ppn: 4
   walltime: 12:00:00
-  conda_init: "source ~/.bashrc"
+  conda_init: source ~/.bashrc
   conda_env: aiqm
   python_command: python
   poll_interval_seconds: 30
   poll_timeout_seconds: 86400
   resources_by_method:
     baseline:
+      queue: default
+      nodes: 1
       ppn: 4
       walltime: 01:00:00
     target:
+      queue: default
+      nodes: 1
       ppn: 8
       walltime: 24:00:00
+    training:
+      queue: GPU
+      nodes: 1
+      ppn: 8
+      walltime: 12:00:00
+    uncertainty:
+      queue: GPU
+      nodes: 1
+      ppn: 4
+      walltime: 04:00:00
+  env_blocks:
+    baseline:
+      - source ~/.bashrc
+      - conda activate aiqm
+    target:
+      - source /share/apps/gaussian/g16-env.sh
+      - source /share/env/ips2018u1.env
+      - source ~/.bashrc
+      - conda activate aiqm
+      - export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:$PATH
+      - export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
+      - export GAUSS_SCRDIR=/tmp/$USER/$PBS_JOBID
+      - mkdir -p "$GAUSS_SCRDIR"
+      - echo "Python path: $(which python)"
+      - echo "GAUSS_SCRDIR: $GAUSS_SCRDIR"
+    training:
+      - source ~/.bashrc
+      - conda activate aiqm
+      - echo "Python path: $(which python)"
+      - nvidia-smi || true
+    uncertainty:
+      - source ~/.bashrc
+      - conda activate aiqm
+      - echo "Python path: $(which python)"
+      - nvidia-smi || true
+  cleanup_blocks:
+    target:
+      - rm -rf "$GAUSS_SCRDIR"
