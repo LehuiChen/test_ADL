@@ -37,16 +37,26 @@ def detect_geometry_format(geometry_path: str | Path) -> str:
 
 def create_mlatom_method(method_config: dict[str, Any]):
     """根据配置创建一个 MLatom 方法对象。"""
+    return _create_mlatom_method(method_config)
+
+
+def _create_mlatom_method(
+    method_config: dict[str, Any],
+    *,
+    working_directory: str | Path | None = None,
+):
+    """根据配置创建一个 MLatom 方法对象。"""
 
     ml = import_mlatom()
     method_name = str(method_config["method"]).strip()
+    program_name = method_config.get("program")
     kwargs = {
         "method": method_name,
         "nthreads": int(method_config.get("nthreads", 1)),
         "save_files_in_current_directory": bool(method_config.get("save_files_in_current_directory", False)),
     }
-    if method_config.get("program"):
-        kwargs["program"] = method_config["program"]
+    if program_name:
+        kwargs["program"] = program_name
 
     # MLatom 3.22 在通用 ml.models.methods(...) 路径下可能提前触发 PySCF 接口导入。
     # 对于纯 xTB baseline，优先走 xTB 专用接口，避免把不需要的 PySCF 变成硬依赖。
@@ -67,13 +77,92 @@ def create_mlatom_method(method_config: dict[str, Any]):
             # 如果专用接口不可用，再回退到通用入口，保留原始行为。
             pass
 
+    # 对 Gaussian target，优先走专用接口，并把工作目录固定到样本作业目录，便于保留 .com/.log 做排错。
+    if str(program_name).lower() == "gaussian":
+        try:
+            gaussian_module = importlib.import_module("mlatom.interfaces.gaussian_interface")
+            gaussian_methods = getattr(gaussian_module, "gaussian_methods")
+            gaussian_kwargs = {
+                "method": method_name,
+                "nthreads": int(method_config.get("nthreads", 1)),
+                "save_files_in_current_directory": bool(method_config.get("save_files_in_current_directory", False)),
+            }
+            if working_directory is not None and "working_directory" in inspect.signature(gaussian_methods).parameters:
+                gaussian_kwargs["working_directory"] = str(Path(working_directory).resolve())
+            return gaussian_methods(**gaussian_kwargs)
+        except Exception:  # noqa: BLE001
+            pass
+
     return ml.models.methods(**kwargs)
+
+
+def _read_text_tail(path: Path, max_lines: int = 40) -> str:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception as exc:  # noqa: BLE001
+        return f"<无法读取 {path.name}: {type(exc).__name__}: {exc}>"
+    return "\n".join(lines[-max_lines:])
+
+
+def _extract_energy_and_gradients(
+    molecule: Any,
+    *,
+    method_config: dict[str, Any],
+    output_dir: str | Path | None = None,
+) -> tuple[float, np.ndarray]:
+    energy_value = None
+    for attr_name in ("energy", "scf_energy"):
+        if hasattr(molecule, attr_name):
+            try:
+                energy_value = float(getattr(molecule, attr_name))
+                break
+            except Exception:  # noqa: BLE001
+                pass
+
+    gradients = None
+    if hasattr(molecule, "get_energy_gradients"):
+        try:
+            gradients = np.asarray(molecule.get_energy_gradients(), dtype=float)
+        except Exception:  # noqa: BLE001
+            gradients = None
+    if gradients is None and hasattr(molecule, "energy_gradients"):
+        try:
+            gradients = np.asarray(getattr(molecule, "energy_gradients"), dtype=float)
+        except Exception:  # noqa: BLE001
+            gradients = None
+    if gradients is None and hasattr(molecule, "get_xyz_vectorial_properties"):
+        try:
+            gradients = np.asarray(molecule.get_xyz_vectorial_properties("energy_gradients"), dtype=float)
+        except Exception:  # noqa: BLE001
+            gradients = None
+
+    if energy_value is not None and gradients is not None:
+        return energy_value, gradients
+
+    debug_lines = [
+        "MLatom 预测完成后未能从 molecule 对象中提取完整的 energy/energy_gradients。",
+        f"method = {method_config.get('method')}",
+        f"program = {method_config.get('program')}",
+        f"molecule_attrs = {sorted(molecule.__dict__.keys())}",
+    ]
+    if hasattr(molecule, "error_message"):
+        debug_lines.append(f"molecule.error_message = {getattr(molecule, 'error_message')}")
+
+    if output_dir is not None:
+        output_path = Path(output_dir)
+        for suffix in ("*.log", "*.out", "*.com"):
+            for file_path in sorted(output_path.glob(suffix)):
+                debug_lines.append(f"===== {file_path.name} =====")
+                debug_lines.append(_read_text_tail(file_path))
+
+    raise RuntimeError("\n".join(debug_lines))
 
 
 def label_geometry_with_mlatom(
     *,
     geometry_path: str | Path,
     method_config: dict[str, Any],
+    output_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """调用 MLatom 对一个几何做单点能和梯度计算。"""
 
@@ -81,7 +170,7 @@ def label_geometry_with_mlatom(
     molecule = ml.data.molecule()
     molecule.load(str(geometry_path), format=detect_geometry_format(geometry_path))
 
-    method = create_mlatom_method(method_config)
+    method = _create_mlatom_method(method_config, working_directory=output_dir)
     method.predict(
         molecule=molecule,
         calculate_energy=True,
@@ -89,8 +178,11 @@ def label_geometry_with_mlatom(
         calculate_hessian=False,
     )
 
-    energy = float(molecule.energy)
-    gradients = np.asarray(molecule.get_xyz_vectorial_properties("energy_gradients"), dtype=float)
+    energy, gradients = _extract_energy_and_gradients(
+        molecule,
+        method_config=method_config,
+        output_dir=output_dir,
+    )
     forces = -gradients
 
     return {
@@ -122,6 +214,7 @@ def run_and_save_label_job(
         payload = label_geometry_with_mlatom(
             geometry_path=geometry_path,
             method_config=method_config,
+            output_dir=output_dir,
         )
         payload["method_key"] = method_key
         write_json(label_path, payload)
