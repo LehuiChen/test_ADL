@@ -9,6 +9,8 @@
 
 ## 1. 日常最常用流程
 
+如果你是在 PBS 集群上运行这个项目，强烈建议先看下面的“集群同步工作流”一节。
+
 先看当前状态：
 
 ```powershell
@@ -38,6 +40,57 @@
 ```powershell
 & 'C:\Program Files\Git\cmd\git.exe' log --oneline --decorate --graph -n 20
 ```
+
+## 1.1 集群同步工作流
+
+如果你要在 PBS 集群上跑这个项目，不要只把
+`minimal_adl_ethene_butadiene/` 子目录单独复制到服务器。推荐在集群上保留完整仓库：
+
+```bash
+cd /share/home/Chenlehui/work
+git clone https://github.com/LehuiChen/test_ADL.git
+cd test_ADL
+git status
+```
+
+真正运行子项目时，再进入：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
+```
+
+以后本地或 GitHub 上有新修改时，统一在仓库根目录更新代码：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL
+git pull --ff-only
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
+```
+
+这样做的好处是：
+
+- 不需要每次手工复制整个子目录
+- 在子目录里执行 `git status` 时，Git 也能自动找到上层仓库
+- 当前仓库已忽略 `data/`、`labels/`、`models/`、`results/`、`logs/` 中的运行产物，通常不会和 `git pull --ff-only` 冲突
+
+如果你当前看到的是：
+
+```text
+fatal: Not a git repository
+```
+
+通常说明你现在所在的目录只是拷出来的代码副本，不是完整 Git 仓库。
+
+### 备用方案：网络受限时用 rsync
+
+如果登录节点以后不能直接访问 GitHub，再退回到“整仓库增量同步”，但也不要只同步子目录。
+推荐同步整个仓库根目录，例如从本地执行：
+
+```bash
+rsync -av --delete /path/to/test_ADL/ user@cluster:/share/home/Chenlehui/work/test_ADL/
+```
+
+这样也比手工复制 `minimal_adl_ethene_butadiene/` 更稳定。
 
 ## 2. 回退前，先分清你现在处于哪一种情况
 
@@ -301,6 +354,21 @@ Git 回退不是只有一种操作。
 - `v0.4.0`
   - PBS 集群运行说明完善
   - README 和文档完善
+
+如果你准备在集群上做阶段性实验，建议把“能稳定跑的一版”打 tag，再在集群上固定版本：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL
+git fetch --tags
+git checkout v0.3.0
+```
+
+如果之后要继续跟主分支走，再切回：
+
+```bash
+git checkout main
+git pull --ff-only
+```
 
 ## 13. 最后一个重要提醒
 

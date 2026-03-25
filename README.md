@@ -160,6 +160,41 @@
 
 - [docs/GIT_VERSIONING_GUIDE.md](./docs/GIT_VERSIONING_GUIDE.md)
 
+## 集群代码同步建议
+
+如果你是在 PBS 集群上运行这个项目，推荐不要只把
+`minimal_adl_ethene_butadiene/` 这个子目录单独复制到服务器。更省事的做法是：
+
+1. 在集群登录节点保留完整仓库副本
+2. 以后本地或我这边改完并 push 到 GitHub 后
+3. 你只需要在集群仓库根目录执行 `git pull --ff-only`
+
+推荐第一次在集群上这样准备：
+
+```bash
+cd /share/home/Chenlehui/work
+git clone https://github.com/LehuiChen/test_ADL.git
+cd test_ADL
+git status
+```
+
+真正运行项目时，再进入子目录：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
+```
+
+以后更新代码时，统一在仓库根目录执行：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL
+git pull --ff-only
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
+```
+
+当前仓库已经通过 `.gitignore` 忽略了 `data/`、`labels/`、`models/`、`results/`、`logs/`
+里的运行产物，所以把计算结果留在这个 clone 里通常不会和 `git pull` 冲突。
+
 ## 论文来源
 
 - Yaohuang Huang, Yi-Fan Hou, Pavlo O. Dral. *Active delta-learning for fast construction of interatomic potentials and stable molecular dynamics simulations*. Mach. Learn.: Sci. Technol. 2025.

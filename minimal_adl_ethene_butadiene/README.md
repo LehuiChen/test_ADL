@@ -95,6 +95,35 @@ minimal_adl_ethene_butadiene/
 - `xtb`：`/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
 - `g16`：`/share/apps/gaussian/g16/g16`
 
+### 先确认你在“完整仓库 clone”里运行
+
+如果你是在 PBS 集群上跑这个项目，推荐在登录节点保留完整 Git 仓库，而不是只复制
+`minimal_adl_ethene_butadiene/` 子目录。正确做法是先在集群上：
+
+```bash
+cd /share/home/Chenlehui/work
+git clone https://github.com/LehuiChen/test_ADL.git
+cd test_ADL
+git status
+```
+
+然后再进入这个子项目目录：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
+```
+
+以后代码更新时，请回到仓库根目录执行：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL
+git pull --ff-only
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
+```
+
+如果你只拷了子目录，没有上层 `.git`，那么 `git pull` 会失败，并提示
+`Not a git repository`。
+
 推荐兼容栈：
 
 - `Python 3.10`
