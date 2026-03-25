@@ -199,6 +199,8 @@ export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/sh
 export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
 ```
 
+如果你在 PBS 子作业日志里看到 `PERLLIB: unbound variable`，通常不是 Gaussian 没装好，而是 `g16-env.sh` 和严格模式 `set -u` 的兼容问题。当前仓库已经在 target PBS 环境块中做了兼容处理，并限制了 `GAUSS_SCRDIR` 的清理范围，避免误删 `/tmp`。
+
 基础检查：
 
 ```bash

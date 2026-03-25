@@ -102,13 +102,16 @@ cluster:
       - 'echo "Python path: $(which python)"'
       - 'echo "xTB path: $(which xtb)"'
     target:
+      - export PERLLIB="${PERLLIB-}"
+      - set +u
       - source /share/apps/gaussian/g16-env.sh
+      - set -u
       - source /share/env/ips2018u1.env
       - source ~/.bashrc
       - conda activate ADL_env
       - export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
       - export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
-      - export GAUSS_SCRDIR=/tmp/$USER/$PBS_JOBID
+      - export GAUSS_SCRDIR=/tmp/${USER:-${LOGNAME:-unknown_user}}/${PBS_JOBID:-unknown_job}
       - mkdir -p "$GAUSS_SCRDIR"
       - 'echo "Python path: $(which python)"'
       - 'echo "xTB path: $(which xtb)"'
@@ -125,4 +128,4 @@ cluster:
       - nvidia-smi || true
   cleanup_blocks:
     target:
-      - rm -rf "$GAUSS_SCRDIR"
+      - if [ -n "${GAUSS_SCRDIR:-}" ] && [ "$GAUSS_SCRDIR" != "/" ] && [ "$GAUSS_SCRDIR" != "/tmp" ] && [ "$GAUSS_SCRDIR" != "/tmp/" ] && [ -d "$GAUSS_SCRDIR" ]; then rm -rf "$GAUSS_SCRDIR"; fi
