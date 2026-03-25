@@ -140,13 +140,15 @@ class DeltaMLModel(ml.al_utils.ml_model):
                 valdb=valdb,
                 learning_grad=False,
             )
-        elif os.path.exists(self.aux_model_file):
+        elif not train_main and os.path.exists(self.aux_model_file):
             self.aux_model = self.initialize_model(
                 ml_model_type=self.ml_model_type,
                 model_file=self.aux_model_file,
                 device=self.device,
                 verbose=self.verbose,
             )
+        else:
+            self.aux_model = None
 
         if "uq_threshold" in al_info:
             self.uq_threshold = float(al_info["uq_threshold"])
@@ -340,4 +342,3 @@ class DeltaMLModel(ml.al_utils.ml_model):
             }
 
         return summary
-
