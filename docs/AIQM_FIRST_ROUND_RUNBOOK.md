@@ -408,17 +408,26 @@ PY
 
 ## 8. 提交 baseline 标注任务
 
-完整批次默认走 CPU 队列：
+完整批次默认走 CPU 队列，并使用统一的 worker 提交模式：
+
+- 默认最多提交 `8` 个 xTB worker 作业，而不是 250 个逐样本 PBS 作业
+- 每个 worker 默认申请 `nodes=1:ppn=16`
+- 每个 worker 在节点内并发 `4` 个 xTB 样本
+
+推荐使用 `--no-wait`，提交后直接用 `qstat` 和结果文件计数观察进度：
 
 ```bash
 python scripts/run_xtb_labels.py \
   --config configs/base.yaml \
-  --manifest data/raw/initial_selection_manifest.json
+  --manifest data/raw/initial_selection_manifest.json \
+  --no-wait
 ```
 
 完成后检查：
 
 ```bash
+qstat -u $USER
+find labels/xtb/jobs -name batch_status.json | wc -l
 find labels/xtb -name status.json | wc -l
 find labels/xtb -name label.json | wc -l
 find labels/xtb -name stderr.log | head
@@ -442,17 +451,27 @@ PY
 
 ## 9. 提交 target 标注任务
 
-这一步也走 CPU 队列，但 PBS 脚本应自动前置 Gaussian 环境：
+这一步也走 CPU 队列，但默认同样是 worker 模式，而不是逐样本 `qsub`：
+
+- 默认最多提交 `8` 个 Gaussian worker 作业
+- 每个 worker 默认申请 `nodes=1:ppn=16`
+- 每个 worker 在节点内并发 `2` 个 Gaussian 样本
+- PBS 脚本会自动前置 Gaussian 环境
+
+同样推荐使用 `--no-wait`：
 
 ```bash
 python scripts/run_target_labels.py \
   --config configs/base.yaml \
-  --manifest data/raw/initial_selection_manifest.json
+  --manifest data/raw/initial_selection_manifest.json \
+  --no-wait
 ```
 
 完成后检查：
 
 ```bash
+qstat -u $USER
+find labels/gaussian/jobs -name batch_status.json | wc -l
 find labels/gaussian -name status.json | wc -l
 find labels/gaussian -name label.json | wc -l
 find labels/gaussian -name stderr.log | head

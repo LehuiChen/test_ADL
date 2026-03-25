@@ -68,16 +68,24 @@ cluster:
   poll_timeout_seconds: 86400
   resources_by_method:
     baseline:
+      # worker: 每个 PBS 作业认领一批样本，并在节点内继续并发执行。
+      submission_strategy: worker
       queue: default
       nodes: 1
-      ppn: 4
+      ppn: 16
       walltime: 01:00:00
+      worker_count: 8
+      local_parallelism: 4
       extra_pbs_lines: []
     target:
+      # 16 核节点上，Gaussian 默认按 2 并发来吃满 2 x 8 线程。
+      submission_strategy: worker
       queue: default
       nodes: 1
-      ppn: 8
+      ppn: 16
       walltime: 24:00:00
+      worker_count: 8
+      local_parallelism: 2
       extra_pbs_lines: []
     training:
       queue: GPU

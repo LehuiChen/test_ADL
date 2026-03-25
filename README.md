@@ -130,6 +130,13 @@
 - Gaussian `wB97X-D/6-31G*` 标注：CPU 队列
 - `ANI` 训练与不确定性评估：GPU 队列 `GPU`
 
+当前默认的 CPU 标注方式不是“每个样本一个 PBS 作业”，而是统一的 worker 模式：
+
+- `xtb` 默认提交最多 `8` 个 worker 作业，每个 worker 占 `1` 个 `16` 核节点，并在节点内并发 `4` 个样本
+- Gaussian 默认提交最多 `8` 个 worker 作业，每个 worker 占 `1` 个 `16` 核节点，并在节点内并发 `2` 个样本
+
+这样完整的 250 样本标注不会一次性冲出 250 到 500 个 PBS 小作业；真正的样本日志仍然保留在各自的 `labels/<method>/<sample_id>/` 目录里。
+
 如果你的机房除了 `queue: GPU` 之外还要求额外资源字段，例如 `gpus=1` 或 `ngpus=1`，请在
 `configs/base.yaml` 的 `cluster.resources_by_method.*.extra_pbs_lines` 中填写；当前仓库已经为这些字段预留了配置入口。
 

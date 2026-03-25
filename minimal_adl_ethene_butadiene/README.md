@@ -295,6 +295,25 @@ python scripts/check_environment.py --expect-gpu --test-mlatom-xtb
 - `train_main_model.py`、`train_aux_model.py`、`evaluate_uncertainty.py` 支持 `--submit-mode {local,pbs}`
 - 训练和不确定性任务使用 `pbs` 模式时，会自动读取 `cluster.resources_by_method.training` 或 `cluster.resources_by_method.uncertainty`
 
+当前默认的 label 提交策略是 `worker`，不是“每个样本一个 qsub”。按 `configs/base.yaml` 的默认值：
+
+- `baseline` 会提交最多 `8` 个 worker 作业，每个 worker 申请 `nodes=1:ppn=16`，并在节点内并发 `4` 个 xTB 样本
+- `target` 会提交最多 `8` 个 worker 作业，每个 worker 申请 `nodes=1:ppn=16`，并在节点内并发 `2` 个 Gaussian 样本
+- 所以完整的 250 样本标注，不会一次性创建 250 到 500 个 PBS 小作业
+
+worker 作业本身的 PBS 文件和汇总日志位于：
+
+- `labels/xtb/jobs/worker_*/`
+- `labels/gaussian/jobs/worker_*/`
+
+单个样本的结果和日志仍然保留在原来的目录里：
+
+- `labels/xtb/<sample_id>/`
+- `labels/gaussian/<sample_id>/`
+
+如果以后确实想退回旧的逐样本提交模式，可以把 `cluster.resources_by_method.<baseline|target>.submission_strategy`
+改成 `per-sample`。
+
 每个作业目录通常会包含：
 
 - `job.pbs`
