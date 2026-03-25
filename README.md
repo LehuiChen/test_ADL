@@ -22,6 +22,7 @@
 1. [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
 2. [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
 3. [minimal_adl_ethene_butadiene/configs/base.yaml](./minimal_adl_ethene_butadiene/configs/base.yaml)
+4. [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
 
 其中：
 
@@ -160,6 +161,10 @@
 14. 第 1 轮选点
 
 详细命令请直接看 [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)。
+
+如果你想直接查看这次 AIQM 集群第一轮实际跑通后的结果摘要，可以看：
+
+- [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
 
 ## Git 版本管理说明
 
