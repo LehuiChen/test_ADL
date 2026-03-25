@@ -12,6 +12,34 @@ from .geometry import load_manifest
 from .io_utils import read_json, write_json
 
 
+def _ensure_torch_load_compat() -> None:
+    """兼容旧版 PyTorch 不支持 `weights_only` 参数的情况。"""
+
+    try:
+        import torch
+    except ModuleNotFoundError:
+        return
+
+    try:
+        load_signature = inspect.signature(torch.load)
+    except (TypeError, ValueError):
+        return
+
+    if "weights_only" in load_signature.parameters:
+        return
+    if getattr(torch.load, "_minimal_adl_weights_only_compat", False):
+        return
+
+    original_torch_load = torch.load
+
+    def _compat_torch_load(*args, **kwargs):
+        kwargs.pop("weights_only", None)
+        return original_torch_load(*args, **kwargs)
+
+    _compat_torch_load._minimal_adl_weights_only_compat = True  # type: ignore[attr-defined]
+    torch.load = _compat_torch_load
+
+
 def import_mlatom():
     """延迟导入 MLatom，避免在当前桌面环境中直接报错。"""
 
@@ -21,6 +49,7 @@ def import_mlatom():
         raise RuntimeError(
             "当前环境无法导入 `mlatom`。请先激活 `ADL_env`，并使用 `import mlatom as ml` 方式检查安装。"
         ) from exc
+    _ensure_torch_load_compat()
     return ml
 
 
