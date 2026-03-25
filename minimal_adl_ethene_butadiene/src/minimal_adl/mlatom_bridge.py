@@ -40,6 +40,32 @@ def create_mlatom_method(method_config: dict[str, Any]):
     return _create_mlatom_method(method_config)
 
 
+def _normalize_gaussian_method_name(method_name: str) -> str:
+    """把论文/README 常用写法转换成 Gaussian 可识别的关键字写法。"""
+
+    route = method_name.strip()
+    if not route:
+        return route
+
+    if "/" not in route:
+        functional = route
+        basis = ""
+    else:
+        functional, basis = route.split("/", 1)
+
+    normalized_functional = functional.strip()
+    functional_key = normalized_functional.lower().replace("ω", "w")
+    gaussian_aliases = {
+        "wb97x-d": "wB97XD",
+        "wb97xd": "wB97XD",
+    }
+    normalized_functional = gaussian_aliases.get(functional_key, normalized_functional)
+
+    if not basis:
+        return normalized_functional
+    return f"{normalized_functional}/{basis.strip()}"
+
+
 def _create_mlatom_method(
     method_config: dict[str, Any],
     *,
@@ -79,11 +105,12 @@ def _create_mlatom_method(
 
     # 对 Gaussian target，优先走专用接口，并把工作目录固定到样本作业目录，便于保留 .com/.log 做排错。
     if str(program_name).lower() == "gaussian":
+        normalized_method_name = _normalize_gaussian_method_name(method_name)
         try:
             gaussian_module = importlib.import_module("mlatom.interfaces.gaussian_interface")
             gaussian_methods = getattr(gaussian_module, "gaussian_methods")
             gaussian_kwargs = {
-                "method": method_name,
+                "method": normalized_method_name,
                 "nthreads": int(method_config.get("nthreads", 1)),
                 "save_files_in_current_directory": bool(method_config.get("save_files_in_current_directory", False)),
             }
@@ -92,6 +119,8 @@ def _create_mlatom_method(
             return gaussian_methods(**gaussian_kwargs)
         except Exception:  # noqa: BLE001
             pass
+
+        kwargs["method"] = normalized_method_name
 
     return ml.models.methods(**kwargs)
 
