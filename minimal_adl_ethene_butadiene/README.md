@@ -184,6 +184,8 @@ python scripts/check_environment.py
 python scripts/check_environment.py --test-mlatom-xtb
 ```
 
+如果 `--test-mlatom-xtb` 报 `No module named 'pyscf'`，通常不是环境少装了 xTB，而是 MLatom 的通用方法分发提前导入了 PySCF 接口。当前仓库已经优先改为 xTB 专用接口，不需要额外安装 PySCF 才能跑 baseline。
+
 如果你已经进入 GPU 节点，再运行：
 
 ```bash

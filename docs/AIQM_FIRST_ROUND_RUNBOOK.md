@@ -369,9 +369,11 @@ PY
 ```bash
 python - <<'PY'
 import mlatom as ml
+from mlatom.interfaces.xtb_interface import xtb_methods
+
 m = ml.data.molecule()
 m.load("geometries/seed/da_eqmol_seed.xyz", format="xyz")
-method = ml.models.methods(method="GFN2-xTB", nthreads=4)
+method = xtb_methods(method="GFN2-xTB", nthreads=4)
 method.predict(
     molecule=m,
     calculate_energy=True,
@@ -381,6 +383,10 @@ method.predict(
 print("energy =", m.energy)
 PY
 ```
+
+如果你在这里看到 `ModuleNotFoundError: No module named 'pyscf'`，通常不是 `xtb` 没装好，而是通用的
+`ml.models.methods(...)` 路径提前触发了 PySCF 接口导入。对于 `GFN2-xTB`，优先使用上面这段
+`xtb_interface.xtb_methods` 写法，不需要额外安装 PySCF。
 
 ## 7. 标注任务前先做小样本冒烟测试
 

@@ -18,6 +18,7 @@ if str(SRC_DIR) not in sys.path:
 
 from minimal_adl.config import load_config
 from minimal_adl.io_utils import write_json
+from minimal_adl.mlatom_bridge import create_mlatom_method
 
 
 def check_python_module(module_name: str) -> dict[str, Any]:
@@ -105,7 +106,13 @@ def run_optional_mlatom_xtb_test(config_path: str | Path) -> dict[str, Any]:
         geometry_path = Path(config["paths"]["seed_geometry"]).resolve()
         molecule = ml.data.molecule()
         molecule.load(str(geometry_path), format="xyz")
-        method = ml.models.methods(method="GFN2-xTB", nthreads=4)
+        method = create_mlatom_method(
+            {
+                "method": "GFN2-xTB",
+                "nthreads": 4,
+                "save_files_in_current_directory": False,
+            }
+        )
         method.predict(
             molecule=molecule,
             calculate_energy=True,

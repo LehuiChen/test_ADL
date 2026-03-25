@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+import inspect
 import traceback
 from pathlib import Path
 from typing import Any
@@ -37,13 +39,34 @@ def create_mlatom_method(method_config: dict[str, Any]):
     """根据配置创建一个 MLatom 方法对象。"""
 
     ml = import_mlatom()
+    method_name = str(method_config["method"]).strip()
     kwargs = {
-        "method": method_config["method"],
+        "method": method_name,
         "nthreads": int(method_config.get("nthreads", 1)),
         "save_files_in_current_directory": bool(method_config.get("save_files_in_current_directory", False)),
     }
     if method_config.get("program"):
         kwargs["program"] = method_config["program"]
+
+    # MLatom 3.22 在通用 ml.models.methods(...) 路径下可能提前触发 PySCF 接口导入。
+    # 对于纯 xTB baseline，优先走 xTB 专用接口，避免把不需要的 PySCF 变成硬依赖。
+    if method_name.lower() in {"gfn2-xtb", "gfn1-xtb", "ipea1-xtb"} and not method_config.get("program"):
+        try:
+            xtb_module = importlib.import_module("mlatom.interfaces.xtb_interface")
+            xtb_methods = getattr(xtb_module, "xtb_methods")
+            xtb_kwargs = {
+                "method": method_name,
+                "nthreads": int(method_config.get("nthreads", 1)),
+            }
+            if "save_files_in_current_directory" in inspect.signature(xtb_methods).parameters:
+                xtb_kwargs["save_files_in_current_directory"] = bool(
+                    method_config.get("save_files_in_current_directory", False)
+                )
+            return xtb_methods(**xtb_kwargs)
+        except Exception:  # noqa: BLE001
+            # 如果专用接口不可用，再回退到通用入口，保留原始行为。
+            pass
+
     return ml.models.methods(**kwargs)
 
 
