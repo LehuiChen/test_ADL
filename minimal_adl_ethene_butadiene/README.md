@@ -187,7 +187,7 @@ export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/sh
 export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
 ```
 
-在 PBS 子作业里，Gaussian 环境脚本有时会和 `set -u` 冲突，报类似 `PERLLIB: unbound variable`。当前仓库已经在 target PBS 环境块里对 `g16-env.sh` 做了兼容处理，并把 `GAUSS_SCRDIR` 清理逻辑收紧到“只删除安全的 job scratch 目录”。
+在 PBS 子作业里，Gaussian 环境脚本有时会和严格模式冲突，报类似 `PERLLIB: unbound variable`，或者在非交互 shell 中返回非零退出码。当前仓库已经在 target PBS 环境块里对 `g16-env.sh` / `ips2018u1.env` 做了容错处理，随后再显式检查 `g16` 和 `GAUSS_EXEDIR` 是否可用，并把 `GAUSS_SCRDIR` 清理逻辑收紧到“只删除安全的 job scratch 目录”。
 
 建议先做基础检查：
 

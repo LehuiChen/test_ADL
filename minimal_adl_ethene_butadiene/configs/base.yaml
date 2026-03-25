@@ -103,16 +103,26 @@ cluster:
       - 'echo "xTB path: $(which xtb)"'
     target:
       - export PERLLIB="${PERLLIB-}"
+      - set +e
       - set +u
+      - set +o pipefail
       - source /share/apps/gaussian/g16-env.sh
-      - set -u
+      - g16_env_rc=$?
       - source /share/env/ips2018u1.env
+      - ips_env_rc=$?
+      - set -e
+      - set -u
+      - set -o pipefail
       - source ~/.bashrc
       - conda activate ADL_env
       - export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
       - export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
       - export GAUSS_SCRDIR=/tmp/${USER:-${LOGNAME:-unknown_user}}/${PBS_JOBID:-unknown_job}
       - mkdir -p "$GAUSS_SCRDIR"
+      - 'echo "g16-env.sh return code: ${g16_env_rc:-0}"'
+      - 'echo "ips2018u1.env return code: ${ips_env_rc:-0}"'
+      - 'command -v g16 >/dev/null || { echo "g16 not found after sourcing Gaussian env" >&2; exit 1; }'
+      - '[ -n "${GAUSS_EXEDIR:-}" ] || { echo "GAUSS_EXEDIR is not set after sourcing Gaussian env" >&2; exit 1; }'
       - 'echo "Python path: $(which python)"'
       - 'echo "xTB path: $(which xtb)"'
       - 'echo "GAUSS_SCRDIR: $GAUSS_SCRDIR"'
