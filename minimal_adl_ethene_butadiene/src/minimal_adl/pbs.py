@@ -16,7 +16,18 @@ def _normalize_shell_lines(block: str | Iterable[str] | None) -> list[str]:
         return []
     if isinstance(block, str):
         return [line.strip() for line in block.splitlines() if line.strip()]
-    return [str(line).strip() for line in block if str(line).strip()]
+    normalized: list[str] = []
+    for line in block:
+        if isinstance(line, dict):
+            raise TypeError(
+                "PBS 环境块中的命令必须是字符串。"
+                f" 当前读到的是字典：{line!r}。"
+                " 如果命令里包含冒号，请把整条命令用单引号包起来。"
+            )
+        text = str(line).strip()
+        if text:
+            normalized.append(text)
+    return normalized
 
 
 def build_shell_command(parts: list[str]) -> str:
