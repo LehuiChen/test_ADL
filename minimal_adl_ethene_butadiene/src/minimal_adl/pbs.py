@@ -52,6 +52,7 @@ def build_pbs_script(
     nodes = int(resources.get("nodes", cluster_config.get("nodes", 1)))
     ppn = int(resources.get("ppn", cluster_config.get("ppn", 1)))
     walltime = resources.get("walltime", cluster_config.get("walltime", "01:00:00"))
+    extra_pbs_lines = _normalize_shell_lines(resources.get("extra_pbs_lines"))
     env_blocks = cluster_config.get("env_blocks", {})
     cleanup_blocks = cluster_config.get("cleanup_blocks", {})
     setup_lines = _normalize_shell_lines(env_blocks.get(method_key))
@@ -70,6 +71,7 @@ def build_pbs_script(
         f"#PBS -l walltime={walltime}",
         f"#PBS -o {stdout_path}",
         f"#PBS -e {stderr_path}",
+        *extra_pbs_lines,
         "",
         "set -euo pipefail",
         f"cd {workdir}",

@@ -78,6 +78,10 @@ def check_torch_status(expect_gpu: bool) -> dict[str, Any]:
         payload["cuda_version"] = torch.version.cuda
         payload["cuda_available"] = bool(torch.cuda.is_available())
         payload["expected_gpu"] = expect_gpu
+        if not str(torch.__version__).startswith("1.12"):
+            payload["version_warning"] = "当前 torch 版本不是推荐的 1.12.x，ANI 老驱动兼容方案可能失效。"
+        if torch.version.cuda not in (None, "11.3"):
+            payload["cuda_warning"] = "当前 torch 绑定的 CUDA 版本不是推荐的 11.3。"
         if payload["cuda_available"]:
             payload["device_name"] = torch.cuda.get_device_name(0)
         elif expect_gpu:
@@ -132,6 +136,7 @@ def main() -> None:
         "checks": {
             "yaml": check_python_module("yaml"),
             "mlatom": check_python_module("mlatom"),
+            "pyh5md": check_python_module("pyh5md"),
             "joblib": check_python_module("joblib"),
             "sklearn": check_python_module("sklearn"),
             "torch": check_torch_status(expect_gpu=args.expect_gpu),

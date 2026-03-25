@@ -72,21 +72,28 @@ cluster:
       nodes: 1
       ppn: 4
       walltime: 01:00:00
+      extra_pbs_lines: []
     target:
       queue: default
       nodes: 1
       ppn: 8
       walltime: 24:00:00
+      extra_pbs_lines: []
     training:
       queue: GPU
       nodes: 1
       ppn: 8
       walltime: 12:00:00
+      # 如果机房以后要求额外 GPU 资源字段，可改成：
+      # extra_pbs_lines:
+      #   - "#PBS -l gpus=1"
+      extra_pbs_lines: []
     uncertainty:
       queue: GPU
       nodes: 1
       ppn: 4
       walltime: 04:00:00
+      extra_pbs_lines: []
   env_blocks:
     baseline:
       - source ~/.bashrc

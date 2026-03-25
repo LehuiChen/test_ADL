@@ -1,71 +1,79 @@
 # Minimal Active Delta-Learning for Ethene + 1,3-Butadiene
 
-这是一个面向本科生的最小复现仓库，用来实现论文 *Active delta-learning for fast construction of interatomic potentials and stable molecular dynamics simulations* 的教学版工作流。
+这是一个面向教学和第一次上手集群复现实验的最小版仓库，用来整理论文
+*Active delta-learning for fast construction of interatomic potentials and stable molecular dynamics simulations*
+在 `ethene + 1,3-butadiene` 体系上的可运行流程。
 
-本仓库不追求完整复现整篇论文，只保留最简单的 Diels-Alder 反应体系：
+本仓库不追求完整复现整篇论文，只保留最小主动学习闭环：
 
 - 体系：`ethene + 1,3-butadiene`
 - baseline：`GFN2-xTB`
 - target：`wB97X-D/6-31G*`
+- 主模型：`ANI`
+- 训练设备：`cuda`
 - 学习目标：
   - `delta_E = E_target - E_baseline`
   - `delta_F = F_target - F_baseline`
 
-## 这个仓库现在包含什么
+## 最推荐的入口
 
-### 1. 最推荐使用的最小版项目
+如果你现在要真正跑通第一轮，请按下面顺序看：
 
-请优先看：
+1. [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
+2. [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
+3. [minimal_adl_ethene_butadiene/configs/base.yaml](./minimal_adl_ethene_butadiene/configs/base.yaml)
 
-- [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
+其中：
 
-这个子项目是专门整理出来的“教学式最小实现”，特点是：
+- 子项目 README 负责解释当前仓库到底实现了什么、环境如何准备、PBS 如何适配
+- 第一轮运行指南负责给出按步骤执行的命令清单
+- `configs/base.yaml` 是所有默认值和队列配置的单一来源
+
+## 当前仓库里有什么
+
+### 1. 最小可运行项目
+
+核心实现位于 [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md) 对应的子项目中，特点是：
 
 - 目录结构清晰
-- 所有脚本职责单一
+- 脚本职责单一
 - 配置集中在 `configs/base.yaml`
-- 默认支持 `PBS + ADL_env` 环境
+- 默认支持 `PBS + ADL_env`
 - 复用系统安装的 `xtb` 和 `g16`
 - 提供环境自检脚本 `scripts/check_environment.py`
-- 中文注释较完整
-- 优先保证“能跑通”而不是“一步做到最复杂”
+- 优先保证“先跑通，再放大规模”
 
 ### 2. 原论文参考目录
 
-仓库里还保留了原始论文参考内容，但默认不作为日常开发入口：
+仓库中保留了原始参考内容，但默认不作为新手入口：
 
 - `adl/`
-  - 原始主动学习脚本
 - `static/`
-  - 原始静态计算结果、几何优化、单点计算等参考数据
 
-这些目录适合对照论文思路，但不适合初学者直接在里面继续开发。
+这些目录更适合对照论文思路，不建议第一次复现时直接在里面继续开发。
 
 ## 当前最小工作流
 
-在 `minimal_adl_ethene_butadiene/` 中，当前已经实现了下面这条主线：
+在 `minimal_adl_ethene_butadiene/` 中，当前已经实现了以下主线：
 
-1. 生成初始几何池
-2. 对每个几何分别提交：
-   - `GFN2-xTB` baseline 标注
-   - Gaussian `wB97X-D/6-31G*` target 标注
-3. 构建统一 delta 数据集：
-   - `delta_E`
-   - `delta_F`
-4. 训练：
-   - 主模型：学习 `delta_E + delta_F`
-   - 辅助模型：只学习 `delta_E`
-   - 默认后端：`ANI`
-   - 默认设备：`cuda`
-   - 推荐兼容栈：`PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`
-5. 评估不确定性：
-   - `|pred_main_delta_E - pred_aux_delta_E|`
-6. 进行最小主动学习选点：
-   - 初始 250 点
-   - 每轮最多新增 100 点
-   - 高不确定性点比例 `< 5%` 视为收敛
-
-## 哪些地方忠于论文，哪些地方做了简化
+1. `sample_initial_geometries.py`
+   - 从种子结构生成初始几何池
+   - 默认生成 400 个几何
+2. `active_learning_loop.py`
+   - 第 0 轮按默认值选出 250 个初始样本
+   - 后续每轮最多新增 100 个样本
+3. `run_xtb_labels.py`
+   - 提交 `GFN2-xTB` baseline 标注
+4. `run_target_labels.py`
+   - 提交 Gaussian `wB97X-D/6-31G*` target 标注
+5. `build_delta_dataset.py`
+   - 构建统一的 `delta_E + delta_F` 数据集
+6. `train_main_model.py`
+   - 主模型学习 `delta_E + delta_F`
+7. `train_aux_model.py`
+   - 辅助模型只学习 `delta_E`
+8. `evaluate_uncertainty.py`
+   - 使用 `|pred_main_delta_E - pred_aux_delta_E|` 作为不确定性
 
 ### 与论文保持一致
 
@@ -73,36 +81,48 @@
 - 每轮最多新增 100 个点
 - 主模型学习 `delta_E + delta_F`
 - 辅助模型只学习 `delta_E`
-- 不确定性使用两模型 `delta_E` 预测差
-- 收敛条件使用高不确定性样本比例 `< 5%`
+- 不确定性定义为两模型 `delta_E` 预测差绝对值
+- 高不确定性点比例 `< 5%` 视为收敛
 
-### 为了最小可运行而做的工程简化
+### 为了最小可运行做的简化
 
 - 只保留 `ethene + 1,3-butadiene`
 - 不做 `C60`
 - 不做 `ANI-1ccx baseline`
-- 不做整篇论文全部实验与分析图
 - target 从论文中的 `B3LYP/6-31G*` 改为 `wB97X-D/6-31G*`
-- 初始采样使用更容易理解和调试的教学版实现
-- 默认训练后端已经切为 `ANI + cuda`
-- 如果 GPU 驱动较老，推荐使用 README 中的老版本 ANI 兼容栈
-- 如果 GPU 暂时不可用，也可以手动切回 `KREG` 或 `cpu`
+- 初始几何池使用教学版随机微扰生成
 
-## 快速开始
+## AIQM 集群环境摘要
 
-进入最小项目目录后，推荐按这个顺序运行：
+当前仓库默认按 AIQM 集群的 `ADL_env` 工作流组织，推荐兼容栈是：
 
-```bash
-python scripts/sample_initial_geometries.py --config configs/base.yaml
-python scripts/active_learning_loop.py --config configs/base.yaml --manifest data/raw/geometry_pool_manifest.json
-python scripts/run_xtb_labels.py --config configs/base.yaml --manifest data/raw/initial_selection_manifest.json
-python scripts/run_target_labels.py --config configs/base.yaml --manifest data/raw/initial_selection_manifest.json
-python scripts/build_delta_dataset.py --config configs/base.yaml --manifest data/raw/initial_selection_manifest.json
-python scripts/train_main_model.py --config configs/base.yaml --submit-mode pbs
-python scripts/train_aux_model.py --config configs/base.yaml --submit-mode pbs
-python scripts/evaluate_uncertainty.py --config configs/base.yaml --manifest data/raw/geometry_pool_manifest.json --submit-mode pbs
-python scripts/active_learning_loop.py --config configs/base.yaml --manifest data/raw/geometry_pool_manifest.json --round-index 1
-```
+- `Python 3.10`
+- `PyTorch 1.12.0`
+- `torchvision 0.13.0`
+- `torchaudio 0.12.0`
+- `cudatoolkit 11.3`
+- `TorchANI 2.2`
+
+安装顺序建议固定为：
+
+1. 用 `conda` 安装基础科学计算依赖
+2. `python -m pip install pyh5md`
+3. 固定 `PyTorch 1.12.0 + cudatoolkit 11.3`
+4. `python -m pip install "torchani==2.2" --no-deps`
+5. `python -m pip install mlatom --no-deps`
+
+> [!WARNING]
+> 不要在已经固定好 `torch==1.12.0` 的环境里直接执行：
+>
+> ```bash
+> python -m pip install mlatom
+> ```
+>
+> 这可能会让 `pip` 自动升级 `torch`，破坏复现实验环境。
+
+> [!NOTE]
+> 在登录节点上执行 `python -c "import torch; print(torch.cuda.is_available())"` 返回 `False` 是正常现象。
+> CUDA 是否真正可用，请在 PBS 申请到的 GPU 节点内检查。
 
 当前这版集群适配默认按下面方式分流：
 
@@ -110,49 +130,38 @@ python scripts/active_learning_loop.py --config configs/base.yaml --manifest dat
 - Gaussian `wB97X-D/6-31G*` 标注：CPU 队列
 - `ANI` 训练与不确定性评估：GPU 队列 `GPU`
 
-Gaussian 继续通过 `MLatom` 直接调用，但 PBS 模板已经内置了你集群上需要的环境前置，例如 `g16-env.sh`、`ips2018u1.env`、`ADL_env`、系统 `xtb` 路径、`dftd4bin` 和 `GAUSS_SCRDIR`。
+如果你的机房除了 `queue: GPU` 之外还要求额外资源字段，例如 `gpus=1` 或 `ngpus=1`，请在
+`configs/base.yaml` 的 `cluster.resources_by_method.*.extra_pbs_lines` 中填写；当前仓库已经为这些字段预留了配置入口。
 
-当前推荐的新环境是 `ADL_env`：
+## 第一轮推荐顺序
 
-- Python 包放在 `ADL_env`
-- `xtb` 直接复用系统路径 `/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
-- Gaussian 继续复用系统安装 `/share/apps/gaussian/g16/g16`
-- 对于驱动 `470.94` 这类老 GPU 节点，推荐使用 `PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`
-- 安装依赖时推荐启用 `libmamba`，并按分阶段命令安装，避免长时间卡在 `Solving environment`
+如果你只想先跑通第一轮，推荐顺序是：
 
-更详细的说明请看：
+1. 环境安装与版本检查
+2. GPU 节点 CUDA 检查
+3. `scripts/check_environment.py`
+4. 几何池生成
+5. 第 0 轮初始选点
+6. `mlatom + xtb` 最小联通检查
+7. 小样本 `xtb` 冒烟测试
+8. 小样本 Gaussian 冒烟测试
+9. 完整批次标注
+10. 构建 delta 数据集
+11. 主模型训练
+12. 辅助模型训练
+13. 不确定性评估
+14. 第 1 轮选点
 
-- [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
-- [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
+详细命令请直接看 [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)。
 
 ## Git 版本管理说明
 
-为了方便版本控制、回退和打标签，我另外整理了一份中文说明：
+如果你需要提交、回退或打版本标签，可以看：
 
 - [docs/GIT_VERSIONING_GUIDE.md](./docs/GIT_VERSIONING_GUIDE.md)
-
-里面包括：
-
-- 日常 `add / commit / push`
-- 如何安全回退
-- 什么时候用 `revert`
-- 什么时候不要乱用 `reset --hard`
-- 如何打版本标签
-- 如何在 GitHub 上基于 tag 发 release
 
 ## 论文来源
 
 - Yaohuang Huang, Yi-Fan Hou, Pavlo O. Dral. *Active delta-learning for fast construction of interatomic potentials and stable molecular dynamics simulations*. Mach. Learn.: Sci. Technol. 2025.
 - ChemRxiv 预印本：[10.26434/chemrxiv-2024-fb02r](https://doi.org/10.26434/chemrxiv-2024-fb02r)
 - MLatom 官方仓库：[dralgroup/mlatom](https://github.com/dralgroup/mlatom)
-
-## 你现在最应该看哪里
-
-如果你是第一次打开这个仓库，建议按这个顺序看：
-
-1. [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
-2. [minimal_adl_ethene_butadiene/configs/base.yaml](./minimal_adl_ethene_butadiene/configs/base.yaml)
-3. [minimal_adl_ethene_butadiene/scripts/sample_initial_geometries.py](./minimal_adl_ethene_butadiene/scripts/sample_initial_geometries.py)
-4. [minimal_adl_ethene_butadiene/scripts/run_xtb_labels.py](./minimal_adl_ethene_butadiene/scripts/run_xtb_labels.py)
-5. [minimal_adl_ethene_butadiene/scripts/run_target_labels.py](./minimal_adl_ethene_butadiene/scripts/run_target_labels.py)
-6. [docs/GIT_VERSIONING_GUIDE.md](./docs/GIT_VERSIONING_GUIDE.md)
