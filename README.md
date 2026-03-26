@@ -23,6 +23,11 @@
 2. [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
 3. [minimal_adl_ethene_butadiene/configs/base.yaml](./minimal_adl_ethene_butadiene/configs/base.yaml)
 4. [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
+5. [docs/流程介绍.md](./docs/流程介绍.md)
+6. [docs/数据分析.ipynb](./docs/数据分析.ipynb)
+
+- `流程介绍` 适合第一次读懂整个项目
+- `数据分析` 适合分析本次或后续轮次跑出来的结果
 
 其中：
 
