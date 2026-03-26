@@ -166,6 +166,10 @@
 
 - [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
 
+如果你想直接查看这次第一轮的流程图和 Sora 提示词，可以看：
+
+- [docs/AIQM_FIRST_ROUND_WORKFLOW_DIAGRAM.md](./docs/AIQM_FIRST_ROUND_WORKFLOW_DIAGRAM.md)
+
 ## Git 版本管理说明
 
 如果你需要提交、回退或打版本标签，可以看：
