@@ -49,6 +49,8 @@ python -m pip install "seaborn>=0.12"
 
 如果 `data_env` 里还缺 `pandas`、`matplotlib` 或 `scikit-learn`，再按报错补装即可。这样 notebook 在服务器上就不会再因为缺 `seaborn` 而直接报错。
 
+如果你是通过 VS Code Remote 或其他远程 notebook 方式打开文件，且 notebook 里“仓库标准文件”一列全部显示 `False`，通常不是训练没产出，而是 notebook 把项目根目录识别错了。当前版本已经增强了自动识别逻辑；如果仍然误判，可以在 `docs/数据分析.ipynb` 的配置区直接设置 `PROJECT_ROOT_OVERRIDE = Path("/share/home/Chenlehui/work/test_ADL")`。
+
 ---
 
 ## 3. 加载系统程序路径
