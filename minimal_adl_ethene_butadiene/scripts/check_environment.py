@@ -135,13 +135,20 @@ def main() -> None:
     parser.add_argument("--expect-gpu", action="store_true", help="如果你当前在 GPU 节点上，可以打开这个选项检查 CUDA。")
     parser.add_argument("--test-mlatom-xtb", action="store_true", help="额外执行一次最小的 mlatom + xtb 单点测试。")
     parser.add_argument("--json-output", default=None, help="把检查结果写入 JSON 文件。")
+    parser.add_argument("--strict", action="store_true", help="若关键依赖缺失，则以非零状态码退出。")
     args = parser.parse_args()
 
+    config = load_config(args.config)
+    target_uses_gaussian = str(config.get("methods", {}).get("target", {}).get("program", "")).lower() == "gaussian"
+
     report: dict[str, Any] = {
-        "config_file": str(Path(args.config).resolve()),
+        "config_file": str(Path(config["config_path"]).resolve()),
         "python": sys.executable,
         "checks": {
             "yaml": check_python_module("yaml"),
+            "pandas": check_python_module("pandas"),
+            "matplotlib": check_python_module("matplotlib"),
+            "seaborn": check_python_module("seaborn"),
             "mlatom": check_python_module("mlatom"),
             "pyh5md": check_python_module("pyh5md"),
             "joblib": check_python_module("joblib"),
@@ -155,12 +162,28 @@ def main() -> None:
     }
 
     if args.test_mlatom_xtb:
-        report["checks"]["mlatom_xtb_single_point"] = run_optional_mlatom_xtb_test(args.config)
+        report["checks"]["mlatom_xtb_single_point"] = run_optional_mlatom_xtb_test(config["config_path"])
 
     if args.json_output:
         write_json(args.json_output, report)
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
+
+    if args.strict:
+        required_keys = ["yaml", "mlatom", "pyh5md", "joblib", "sklearn", "torch", "torchani", "xtb"]
+        if target_uses_gaussian:
+            required_keys.append("g16")
+
+        failed_checks = [
+            key
+            for key in required_keys
+            if not report["checks"].get(key, {}).get("ok", False)
+        ]
+        if args.test_mlatom_xtb and not report["checks"].get("mlatom_xtb_single_point", {}).get("ok", False):
+            failed_checks.append("mlatom_xtb_single_point")
+
+        if failed_checks:
+            raise SystemExit(f"关键环境检查未通过：{', '.join(failed_checks)}")
 
 
 if __name__ == "__main__":

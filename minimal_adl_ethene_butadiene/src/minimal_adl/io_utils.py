@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from datetime import datetime
 from pathlib import Path
@@ -54,8 +55,33 @@ def write_text(path: Path | str, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def write_csv_rows(
+    path: Path | str,
+    rows: list[dict[str, Any]],
+    *,
+    fieldnames: list[str] | None = None,
+) -> None:
+    """把样本级结果写成 CSV，便于 notebook 直接读取。"""
+
+    path = Path(path)
+    ensure_dir(path.parent)
+
+    if fieldnames is None:
+        ordered_fields: list[str] = []
+        for row in rows:
+            for key in row.keys():
+                if key not in ordered_fields:
+                    ordered_fields.append(key)
+        fieldnames = ordered_fields
+
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: row.get(key) for key in fieldnames})
+
+
 def timestamp_string() -> str:
     """返回统一格式的时间戳字符串。"""
 
     return datetime.now().isoformat(timespec="seconds")
-

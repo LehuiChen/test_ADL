@@ -22,6 +22,12 @@ def main() -> None:
     parser.add_argument("--config", required=True, help="YAML 配置文件路径。")
     parser.add_argument("--manifest", required=True, help="完整几何池 manifest。")
     parser.add_argument(
+        "--mode",
+        choices=["auto", "initial-selection", "next-round"],
+        default="auto",
+        help="显式指定当前阶段：初始选点、下一轮选点，或按旧逻辑自动判断。",
+    )
+    parser.add_argument(
         "--uncertainty",
         default=None,
         help="不确定性结果 JSON。若数据集尚不存在，则忽略该参数并做初始 250 点选择。",
@@ -38,7 +44,16 @@ def main() -> None:
     manifest_by_id = {entry["sample_id"]: entry for entry in manifest_entries}
     dataset_metadata_path = Path(config["paths"]["delta_dataset_metadata"])
 
-    if not dataset_metadata_path.exists():
+    if args.mode == "next-round" and not dataset_metadata_path.exists():
+        raise FileNotFoundError(
+            f"你显式要求运行下一轮选点，但还没有找到 delta 数据集 metadata：{dataset_metadata_path}"
+        )
+
+    run_initial_selection = args.mode == "initial-selection" or (
+        args.mode == "auto" and not dataset_metadata_path.exists()
+    )
+
+    if run_initial_selection:
         rng = random.Random(int(al_cfg.get("random_seed", 20260324)))
         initial_points = min(int(al_cfg.get("initial_points", 250)), len(manifest_entries))
         selected_entries = manifest_entries[:]
@@ -88,4 +103,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .io_utils import write_json
+import numpy as np
+
+from .io_utils import write_csv_rows, write_json
 from .mlatom_bridge import import_mlatom
 
 ml = import_mlatom()
@@ -160,13 +162,19 @@ class DeltaMLModel(ml.al_utils.ml_model):
         else:
             self.uq_threshold = None
 
-        summary = self.summary(subtraindb=subtraindb, valdb=valdb)
+        summary, summary_details = self.summary(subtraindb=subtraindb, valdb=valdb, include_details=True)
+        artifact_paths = self.write_training_artifacts(
+            workdir=workdir,
+            summary=summary,
+            summary_details=summary_details,
+        )
         state = {
             "main_model_file": self.main_model_file if self.main_model is not None else None,
             "aux_model_file": self.aux_model_file if self.aux_model is not None else None,
             "uq_threshold": self.uq_threshold,
             "train_main": train_main,
             "train_aux": train_aux,
+            **artifact_paths,
         }
         write_json(workdir / summary_filename, summary)
         write_json(workdir / state_filename, state)
@@ -293,8 +301,237 @@ class DeltaMLModel(ml.al_utils.ml_model):
             else:
                 raise ValueError(f"当前未实现的辅助模型类型：{ml_model_type}")
 
-    def summary(self, *, subtraindb, valdb) -> dict[str, Any]:
-        """输出训练摘要，不画图，只保存数字指标。"""
+    @staticmethod
+    def _safe_float(value: Any) -> float | None:
+        try:
+            return float(value)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _safe_vector_property(molecule: Any, property_name: str) -> np.ndarray | None:
+        try:
+            return np.asarray(molecule.get_xyz_vectorial_properties(property_name), dtype=float)
+        except Exception:  # noqa: BLE001
+            pass
+
+        raw_value = getattr(molecule, property_name, None)
+        if raw_value is None:
+            return None
+        try:
+            return np.asarray(raw_value, dtype=float)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _normalize_history_payload(self, payload: Any) -> dict[str, list[float]]:
+        if isinstance(payload, dict):
+            normalized: dict[str, list[float]] = {}
+            for key, value in payload.items():
+                if isinstance(value, dict) and "history" in value:
+                    nested = self._normalize_history_payload(value["history"])
+                    if nested:
+                        return nested
+                    continue
+                try:
+                    series = [float(item) for item in np.ravel(value).tolist()]
+                except Exception:  # noqa: BLE001
+                    continue
+                if series:
+                    normalized[str(key)] = series
+            return normalized
+
+        if hasattr(payload, "history") and isinstance(payload.history, dict):
+            return self._normalize_history_payload(payload.history)
+
+        if isinstance(payload, (list, tuple)) and payload and all(isinstance(item, dict) for item in payload):
+            normalized = {}
+            keys = {key for item in payload for key in item.keys()}
+            for key in keys:
+                try:
+                    series = [float(item[key]) for item in payload if key in item]
+                except Exception:  # noqa: BLE001
+                    continue
+                if series:
+                    normalized[str(key)] = series
+            return normalized
+
+        return {}
+
+    def _extract_model_history(self, model: Any, model_key: str) -> dict[str, Any]:
+        if model is None:
+            return {
+                "available": False,
+                "model": model_key,
+                "reason": "当前没有可用的模型对象，因此无法导出训练 history。",
+            }
+
+        candidate_attrs = [
+            "history",
+            "training_history",
+            "history_",
+            "_history",
+            "learning_curve",
+            "learning_curve_",
+            "metrics_history",
+        ]
+        for attr_name in candidate_attrs:
+            if not hasattr(model, attr_name):
+                continue
+            payload = getattr(model, attr_name)
+            normalized = self._normalize_history_payload(payload)
+            if normalized:
+                return {
+                    "available": True,
+                    "model": model_key,
+                    "source_attribute": attr_name,
+                    "history": normalized,
+                }
+
+        return {
+            "available": False,
+            "model": model_key,
+            "reason": "当前 ANI/MLatom 接口没有暴露结构化逐 epoch history，因此这里只保留最终指标和逐样本预测。",
+        }
+
+    def _artifact_paths(self, workdir: Path) -> dict[str, Path]:
+        return {
+            "training_split_file": workdir / "training_split.json",
+            "train_main_predictions_file": workdir / "train_main_predictions.csv",
+            "train_aux_predictions_file": workdir / "train_aux_predictions.csv",
+            "train_main_history_file": workdir / "train_main_history.json",
+            "train_aux_history_file": workdir / "train_aux_history.json",
+        }
+
+    def _build_prediction_rows(
+        self,
+        *,
+        trainingdb_ref,
+        trainingdb,
+        split_labels: list[str],
+        model_key: str,
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        prediction_attr = "delta_energy" if model_key == "main_model" else "aux_delta_energy"
+
+        for index, (ref_molecule, pred_molecule, split_label) in enumerate(zip(trainingdb_ref, trainingdb, split_labels)):
+            sample_id = str(getattr(ref_molecule, "id", f"sample_{index:04d}"))
+            y_true = self._safe_float(getattr(ref_molecule, "delta_energy", None))
+            y_pred = self._safe_float(getattr(pred_molecule, prediction_attr, None))
+            residual = None if y_true is None or y_pred is None else y_pred - y_true
+
+            row: dict[str, Any] = {
+                "sample_id": sample_id,
+                "split": split_label,
+                "y_true": y_true,
+                "y_pred": y_pred,
+                "residual": residual,
+                "abs_error": None if residual is None else abs(residual),
+                "baseline_energy": self._safe_float(getattr(ref_molecule, "baseline_energy", None)),
+                "target_energy": self._safe_float(getattr(ref_molecule, "reference_energy", None)),
+                "predicted_total_energy": self._safe_float(getattr(pred_molecule, "energy", None)),
+                "uncertainty": self._safe_float(getattr(pred_molecule, "uq", None)),
+            }
+
+            if model_key == "main_model":
+                true_grad = self._safe_vector_property(ref_molecule, "delta_energy_gradients")
+                pred_grad = self._safe_vector_property(pred_molecule, "delta_energy_gradients")
+                if true_grad is not None:
+                    true_force = -true_grad
+                    row["true_gradient_norm"] = float(np.linalg.norm(true_grad))
+                    row["true_force_norm"] = float(np.linalg.norm(true_force))
+                if pred_grad is not None:
+                    pred_force = -pred_grad
+                    row["pred_gradient_norm"] = float(np.linalg.norm(pred_grad))
+                    row["pred_force_norm"] = float(np.linalg.norm(pred_force))
+                if true_grad is not None and pred_grad is not None:
+                    grad_diff = pred_grad - true_grad
+                    force_diff = (-pred_grad) - (-true_grad)
+                    row["gradient_rmse"] = float(np.sqrt(np.mean(np.square(grad_diff))))
+                    row["force_error_norm"] = float(np.linalg.norm(force_diff))
+            else:
+                row["predicted_delta_energy_main"] = self._safe_float(getattr(pred_molecule, "delta_energy", None))
+                if row["baseline_energy"] is not None and y_pred is not None:
+                    row["predicted_total_energy"] = row["baseline_energy"] + y_pred
+
+            rows.append(row)
+
+        return rows
+
+    def write_training_artifacts(
+        self,
+        *,
+        workdir: Path,
+        summary: dict[str, Any],
+        summary_details: dict[str, Any],
+    ) -> dict[str, str]:
+        artifact_paths = self._artifact_paths(workdir)
+        split_rows = summary_details.get("split_rows", [])
+        write_json(
+            artifact_paths["training_split_file"],
+            {
+                "num_subtrain": summary.get("num_subtrain", 0),
+                "num_validation": summary.get("num_validation", 0),
+                "subtrain_sample_ids": [item["sample_id"] for item in split_rows if item["split"] == "subtrain"],
+                "validation_sample_ids": [item["sample_id"] for item in split_rows if item["split"] == "validation"],
+                "rows": split_rows,
+            },
+        )
+
+        main_rows = summary_details.get("main_prediction_rows", [])
+        aux_rows = summary_details.get("aux_prediction_rows", [])
+        write_csv_rows(
+            artifact_paths["train_main_predictions_file"],
+            main_rows,
+            fieldnames=[
+                "sample_id",
+                "split",
+                "y_true",
+                "y_pred",
+                "residual",
+                "abs_error",
+                "baseline_energy",
+                "target_energy",
+                "predicted_total_energy",
+                "uncertainty",
+                "true_gradient_norm",
+                "pred_gradient_norm",
+                "gradient_rmse",
+                "true_force_norm",
+                "pred_force_norm",
+                "force_error_norm",
+            ],
+        )
+        write_csv_rows(
+            artifact_paths["train_aux_predictions_file"],
+            aux_rows,
+            fieldnames=[
+                "sample_id",
+                "split",
+                "y_true",
+                "y_pred",
+                "residual",
+                "abs_error",
+                "baseline_energy",
+                "target_energy",
+                "predicted_total_energy",
+                "uncertainty",
+                "predicted_delta_energy_main",
+            ],
+        )
+
+        main_history = self._extract_model_history(self.main_model, "main_model")
+        aux_history = self._extract_model_history(self.aux_model, "aux_model")
+        if "main_model" in summary:
+            main_history["final_metrics"] = summary["main_model"]
+        if "aux_model" in summary:
+            aux_history["final_metrics"] = summary["aux_model"]
+        write_json(artifact_paths["train_main_history_file"], main_history)
+        write_json(artifact_paths["train_aux_history_file"], aux_history)
+
+        return {key: str(path.resolve()) for key, path in artifact_paths.items()}
+
+    def summary(self, *, subtraindb, valdb, include_details: bool = False):
+        """输出训练摘要，并在需要时返回逐样本诊断细节。"""
 
         summary = {
             "num_subtrain": len(subtraindb),
@@ -303,6 +540,8 @@ class DeltaMLModel(ml.al_utils.ml_model):
         }
 
         if self.main_model is None:
+            if include_details:
+                return summary, {"split_rows": [], "main_prediction_rows": [], "aux_prediction_rows": []}
             return summary
 
         trainingdb_ref = subtraindb + valdb
@@ -310,6 +549,14 @@ class DeltaMLModel(ml.al_utils.ml_model):
         self.predict(molecular_database=trainingdb)
 
         n_subtrain = len(subtraindb)
+        split_labels = ["subtrain"] * n_subtrain + ["validation"] * len(valdb)
+        split_rows = [
+            {
+                "sample_id": str(getattr(molecule, "id", f"sample_{index:04d}")),
+                "split": split_labels[index],
+            }
+            for index, molecule in enumerate(trainingdb_ref)
+        ]
         values = trainingdb_ref.get_properties("delta_energy")
         predicted_values = trainingdb.get_properties("delta_energy")
         gradients = trainingdb_ref.get_xyz_vectorial_properties("delta_energy_gradients")
@@ -341,4 +588,23 @@ class DeltaMLModel(ml.al_utils.ml_model):
                 ),
             }
 
-        return summary
+        if not include_details:
+            return summary
+
+        return summary, {
+            "split_rows": split_rows,
+            "main_prediction_rows": self._build_prediction_rows(
+                trainingdb_ref=trainingdb_ref,
+                trainingdb=trainingdb,
+                split_labels=split_labels,
+                model_key="main_model",
+            ),
+            "aux_prediction_rows": self._build_prediction_rows(
+                trainingdb_ref=trainingdb_ref,
+                trainingdb=trainingdb,
+                split_labels=split_labels,
+                model_key="aux_model",
+            )
+            if self.aux_model is not None
+            else [],
+        }

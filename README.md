@@ -1,196 +1,136 @@
 # Minimal Active Delta-Learning for Ethene + 1,3-Butadiene
 
-这是一个面向教学和第一次上手集群复现实验的最小版仓库，用来整理论文
-*Active delta-learning for fast construction of interatomic potentials and stable molecular dynamics simulations*
-在 `ethene + 1,3-butadiene` 体系上的可运行流程。
+这是一个面向教学、复现和第一轮上手的最小版 ADL 仓库。它围绕 `ethene + 1,3-butadiene` 体系，保留一条尽量短但能真正闭环的主动 delta-learning 主线：
 
-本仓库不追求完整复现整篇论文，只保留最小主动学习闭环：
-
-- 体系：`ethene + 1,3-butadiene`
-- baseline：`GFN2-xTB`
-- target：`wB97X-D/6-31G*`
-- 主模型：`ANI`
-- 训练设备：`cuda`
-- 学习目标：
+- `baseline`: `GFN2-xTB`
+- `target`: Gaussian `wB97X-D/6-31G*`
+- 主模型: `ANI`
+- 学习目标:
   - `delta_E = E_target - E_baseline`
   - `delta_F = F_target - F_baseline`
 
-## 最推荐的入口
+这份仓库现在的目标不只是“第一轮能跑通”，而是“跑完就能直接分析和汇报”。
 
-如果你现在要真正跑通第一轮，请按下面顺序看：
+## 推荐入口
+第一次接触这个项目，建议按下面顺序看：
 
 1. [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
-2. [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
-3. [minimal_adl_ethene_butadiene/configs/base.yaml](./minimal_adl_ethene_butadiene/configs/base.yaml)
-4. [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
-5. [docs/流程介绍.md](./docs/流程介绍.md)
-6. [docs/数据分析.ipynb](./docs/数据分析.ipynb)
+2. [docs/流程介绍.md](./docs/流程介绍.md)
+3. [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
+4. [docs/数据分析.ipynb](./docs/数据分析.ipynb)
+5. [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
 
-- `流程介绍` 适合第一次读懂整个项目
-- `数据分析` 适合分析本次或后续轮次跑出来的结果
+- `流程介绍` 适合第一次读懂整个项目在做什么、每一步为什么存在、核心文件分别负责什么。
+- `数据分析` 适合分析本次或后续轮次跑出来的结果，默认围绕回归任务组织。
+- `AIQM_FIRST_ROUND_RUNBOOK` 适合在服务器上按标准路径实际执行。
+
+## 这次升级后的主线能力
+当前推荐主线位于 [minimal_adl_ethene_butadiene](./minimal_adl_ethene_butadiene/)，已经升级为“可复跑、可分析、可汇报”的第一轮流程：
+
+- 新增一键主控脚本 `scripts/run_first_round_pipeline.py`
+- 保留现有单阶段脚本，便于局部重跑和排错
+- 训练后自动补齐 notebook 默认需要的分析产物
+- `docs/数据分析.ipynb` 默认直接读取标准输出路径
+- 缺失可选文件时 notebook 会清晰降级，而不是整本报错
+
+## 一键跑第一轮
+在服务器仓库根目录更新代码后，进入子项目目录执行：
+
+```bash
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
+python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --submit-mode-labels pbs       --submit-mode-train pbs       --submit-mode-uq pbs
+```
+
+如果你想先插入一个小规模联通检查，再跑完整主线：
+
+```bash
+python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --submit-mode-labels pbs       --submit-mode-train pbs       --submit-mode-uq pbs       --with-smoke-tests
+```
+
+这个主控脚本固定编排以下阶段：
+
+1. `check_environment`
+2. `sample_initial_geometries`
+3. `initial_selection`
+4. `run_xtb_labels`
+5. `run_target_labels`
+6. `build_delta_dataset`
+7. `train_main_model`
+8. `train_aux_model`
+9. `export_training_diagnostics`
+10. `evaluate_uncertainty`
+11. `select_round_001`
+
+它默认启用 `resume`，如果某阶段已有成功产物，会自动跳过；也支持 `--from-stage`、`--to-stage` 和 `--force` 做局部重跑。
+
+## 跑完之后会多出哪些标准分析产物
+升级后，第一轮训练和 UQ 完成后会统一输出这些标准文件：
+
+`models/`
+
+- `training_summary.json`
+- `training_state.json`
+- `training_split.json`
+- `train_main_predictions.csv`
+- `train_aux_predictions.csv`
+- `train_main_history.json`
+- `train_aux_history.json`
+- `training_diagnostics.json`
+
+`results/`
+
+- `uncertainty_latest.json`
+- `round_001_selection_summary.json`
+- `round_001_selected_manifest.json`
+- `pipeline_run_summary.json`
+- `check_environment_latest.json`
 
 其中：
 
-- 子项目 README 负责解释当前仓库到底实现了什么、环境如何准备、PBS 如何适配
-- 第一轮运行指南负责给出按步骤执行的命令清单
-- `configs/base.yaml` 是所有默认值和队列配置的单一来源
+- `predictions.csv` 负责逐样本误差分析
+- `history.json` 负责训练曲线
+- `training_diagnostics.json` 负责告诉 notebook 应该默认读哪些文件
+- `pipeline_run_summary.json` 负责记录主控流程的阶段状态
 
-## 当前仓库里有什么
+## 如何分析结果
+升级后的 notebook 位于 [docs/数据分析.ipynb](./docs/数据分析.ipynb)。
 
-### 1. 最小可运行项目
+它默认围绕四个问题组织：
 
-核心实现位于 [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md) 对应的子项目中，特点是：
+1. 数据长什么样
+2. 模型训练得顺不顺
+3. 模型预测得准不准
+4. 模型为什么这样预测
 
-- 目录结构清晰
-- 脚本职责单一
-- 配置集中在 `configs/base.yaml`
-- 默认支持 `PBS + ADL_env`
-- 复用系统安装的 `xtb` 和 `g16`
-- 提供环境自检脚本 `scripts/check_environment.py`
-- 优先保证“先跑通，再放大规模”
+标准路径下，优先直接读取：
 
-### 2. 原论文参考目录
+- `models/train_main_history.json`
+- `models/train_main_predictions.csv`
+- `models/training_summary.json`
+- `results/uncertainty_latest.json`
+- `results/round_001_selection_summary.json`
 
-仓库中保留了原始参考内容，但默认不作为新手入口：
+如果你的服务器产物路径和标准路径一致，通常不需要先手改 notebook 顶部 `CONFIG`。
+
+## 环境说明
+当前 `base.yaml` 里的 PBS 默认环境名仍然是 `ADL_env`，用于训练、标注和 UQ 主流程。  
+如果你只是在服务器上打开分析 notebook，可以继续使用单独的 `data_env`。也就是说：
+
+- 训练、标注、UQ：默认按 `conda activate ADL_env`
+- notebook 分析与可视化：可以使用 `conda activate data_env`
+
+依赖方面，`minimal_adl_ethene_butadiene/requirements.txt` 已补充 `seaborn`，这样 notebook 在常规环境下可以直接绘图；如果服务器环境里暂时没有 `seaborn`，notebook 也会自动降级到 `matplotlib` 风格继续运行。
+
+## 仓库里还有什么
+历史参考目录仍然保留，但当前不作为新手主入口：
 
 - `adl/`
 - `static/`
 
-这些目录更适合对照论文思路，不建议第一次复现时直接在里面继续开发。
+它们更适合对照论文思路，不建议第一次复现时直接从里面继续开发。
 
-## 当前最小工作流
-
-在 `minimal_adl_ethene_butadiene/` 中，当前已经实现了以下主线：
-
-1. `sample_initial_geometries.py`
-   - 从种子结构生成初始几何池
-   - 默认生成 400 个几何
-2. `active_learning_loop.py`
-   - 第 0 轮按默认值选出 250 个初始样本
-   - 后续每轮最多新增 100 个样本
-3. `run_xtb_labels.py`
-   - 提交 `GFN2-xTB` baseline 标注
-4. `run_target_labels.py`
-   - 提交 Gaussian `wB97X-D/6-31G*` target 标注
-5. `build_delta_dataset.py`
-   - 构建统一的 `delta_E + delta_F` 数据集
-6. `train_main_model.py`
-   - 主模型学习 `delta_E + delta_F`
-7. `train_aux_model.py`
-   - 辅助模型只学习 `delta_E`
-8. `evaluate_uncertainty.py`
-   - 使用 `|pred_main_delta_E - pred_aux_delta_E|` 作为不确定性
-
-### 与论文保持一致
-
-- 初始样本数默认 250
-- 每轮最多新增 100 个点
-- 主模型学习 `delta_E + delta_F`
-- 辅助模型只学习 `delta_E`
-- 不确定性定义为两模型 `delta_E` 预测差绝对值
-- 高不确定性点比例 `< 5%` 视为收敛
-
-### 为了最小可运行做的简化
-
-- 只保留 `ethene + 1,3-butadiene`
-- 不做 `C60`
-- 不做 `ANI-1ccx baseline`
-- target 从论文中的 `B3LYP/6-31G*` 改为 `wB97X-D/6-31G*`
-- 初始几何池使用教学版随机微扰生成
-
-## AIQM 集群环境摘要
-
-当前仓库默认按 AIQM 集群的 `ADL_env` 工作流组织，推荐兼容栈是：
-
-- `Python 3.10`
-- `PyTorch 1.12.0`
-- `torchvision 0.13.0`
-- `torchaudio 0.12.0`
-- `cudatoolkit 11.3`
-- `TorchANI 2.2`
-
-安装顺序建议固定为：
-
-1. 用 `conda` 安装基础科学计算依赖
-2. `python -m pip install pyh5md`
-3. 固定 `PyTorch 1.12.0 + cudatoolkit 11.3`
-4. `python -m pip install "torchani==2.2" --no-deps`
-5. `python -m pip install mlatom --no-deps`
-
-> [!WARNING]
-> 不要在已经固定好 `torch==1.12.0` 的环境里直接执行：
->
-> ```bash
-> python -m pip install mlatom
-> ```
->
-> 这可能会让 `pip` 自动升级 `torch`，破坏复现实验环境。
-
-> [!NOTE]
-> 在登录节点上执行 `python -c "import torch; print(torch.cuda.is_available())"` 返回 `False` 是正常现象。
-> CUDA 是否真正可用，请在 PBS 申请到的 GPU 节点内检查。
-
-当前这版集群适配默认按下面方式分流：
-
-- `xtb` 标注：CPU 队列
-- Gaussian `wB97X-D/6-31G*` 标注：CPU 队列
-- `ANI` 训练与不确定性评估：GPU 队列 `GPU`
-
-当前默认的 CPU 标注方式不是“每个样本一个 PBS 作业”，而是统一的 worker 模式：
-
-- `xtb` 默认提交最多 `8` 个 worker 作业，每个 worker 占 `1` 个 `16` 核节点，并在节点内并发 `4` 个样本
-- Gaussian 默认提交最多 `8` 个 worker 作业，每个 worker 占 `1` 个 `16` 核节点，并在节点内并发 `2` 个样本
-
-这样完整的 250 样本标注不会一次性冲出 250 到 500 个 PBS 小作业；真正的样本日志仍然保留在各自的 `labels/<method>/<sample_id>/` 目录里。
-
-如果你的机房除了 `queue: GPU` 之外还要求额外资源字段，例如 `gpus=1` 或 `ngpus=1`，请在
-`configs/base.yaml` 的 `cluster.resources_by_method.*.extra_pbs_lines` 中填写；当前仓库已经为这些字段预留了配置入口。
-
-## 第一轮推荐顺序
-
-如果你只想先跑通第一轮，推荐顺序是：
-
-1. 环境安装与版本检查
-2. GPU 节点 CUDA 检查
-3. `scripts/check_environment.py`
-4. 几何池生成
-5. 第 0 轮初始选点
-6. `mlatom + xtb` 最小联通检查
-7. 小样本 `xtb` 冒烟测试
-8. 小样本 Gaussian 冒烟测试
-9. 完整批次标注
-10. 构建 delta 数据集
-11. 主模型训练
-12. 辅助模型训练
-13. 不确定性评估
-14. 第 1 轮选点
-
-详细命令请直接看 [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)。
-
-如果你想直接查看这次 AIQM 集群第一轮实际跑通后的结果摘要，可以看：
-
-- [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
-
-如果你想直接查看这次第一轮的流程图和 Sora 提示词，可以看：
-
-- [docs/AIQM_FIRST_ROUND_WORKFLOW_DIAGRAM.md](./docs/AIQM_FIRST_ROUND_WORKFLOW_DIAGRAM.md)
-
-## Git 版本管理说明
-
-如果你需要提交、回退或打版本标签，可以看：
-
-- [docs/GIT_VERSIONING_GUIDE.md](./docs/GIT_VERSIONING_GUIDE.md)
-
-## 集群代码同步建议
-
-如果你是在 PBS 集群上运行这个项目，推荐不要只把
-`minimal_adl_ethene_butadiene/` 这个子目录单独复制到服务器。更省事的做法是：
-
-1. 在集群登录节点保留完整仓库副本
-2. 以后本地或我这边改完并 push 到 GitHub 后
-3. 你只需要在集群仓库根目录执行 `git pull --ff-only`
-
-推荐第一次在集群上这样准备：
+## 集群同步建议
+推荐在服务器上保留完整仓库 clone，而不是只拷贝子目录。标准更新流程是：
 
 ```bash
 cd /share/home/Chenlehui/work
@@ -199,13 +139,7 @@ cd test_ADL
 git status
 ```
 
-真正运行项目时，再进入子目录：
-
-```bash
-cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
-```
-
-以后更新代码时，统一在仓库根目录执行：
+以后本地推送新版本后，服务器统一这样更新：
 
 ```bash
 cd /share/home/Chenlehui/work/test_ADL
@@ -213,11 +147,8 @@ git pull --ff-only
 cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
 ```
 
-当前仓库已经通过 `.gitignore` 忽略了 `data/`、`labels/`、`models/`、`results/`、`logs/`
-里的运行产物，所以把计算结果留在这个 clone 里通常不会和 `git pull` 冲突。
-
 ## 论文来源
 
 - Yaohuang Huang, Yi-Fan Hou, Pavlo O. Dral. *Active delta-learning for fast construction of interatomic potentials and stable molecular dynamics simulations*. Mach. Learn.: Sci. Technol. 2025.
-- ChemRxiv 预印本：[10.26434/chemrxiv-2024-fb02r](https://doi.org/10.26434/chemrxiv-2024-fb02r)
-- MLatom 官方仓库：[dralgroup/mlatom](https://github.com/dralgroup/mlatom)
+- ChemRxiv 预印本: [10.26434/chemrxiv-2024-fb02r](https://doi.org/10.26434/chemrxiv-2024-fb02r)
+- MLatom 官方仓库: [dralgroup/mlatom](https://github.com/dralgroup/mlatom)

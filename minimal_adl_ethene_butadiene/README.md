@@ -1,329 +1,194 @@
-# 最小版 ADL 复现项目：ethene + 1,3-butadiene
+# 最小版 ADL 项目：Ethene + 1,3-Butadiene
 
-这个子项目是当前仓库里真正推荐使用的入口，目标不是完整复现整篇论文，而是先把最小可运行的 active delta-learning 第一轮工作流在 AIQM 集群上跑通。
+这个子项目是当前仓库里真正推荐使用的主入口，目标不是完整复现整篇论文，而是把最小版 active delta-learning 第一轮流程在服务器上稳定跑通，并且让结果能直接进入分析与汇报。
+
+当前默认设置：
 
 - 体系：`ethene + 1,3-butadiene`
-- baseline：`GFN2-xTB`
-- target：`wB97X-D/6-31G*`
-- 默认训练后端：`ANI`
+- `baseline`：`GFN2-xTB`
+- `target`：Gaussian `wB97X-D/6-31G*`
+- 主模型：`ANI`
 - 默认训练设备：`cuda`
-- 推荐兼容栈：`PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`
+- 默认训练环境名：`ADL_env`
 - 学习目标：
   - `delta_E = E_target - E_baseline`
   - `delta_F = F_target - F_baseline`
 
-## 1. 当前子项目实现了什么
+## 现在推荐的使用方式
+与之前“逐条敲单阶段脚本”的方式相比，现在更推荐：
 
-当前仓库的真实入口就是下面这些脚本：
+1. 先跑 `scripts/run_first_round_pipeline.py`
+2. 跑完后直接打开 `../docs/数据分析.ipynb`
 
-1. `sample_initial_geometries.py`
-   - 从种子结构生成初始几何池
-   - 默认生成 400 个几何
-2. `active_learning_loop.py`
-   - 第 0 轮默认选择 250 个初始点
-   - 后续每轮最多新增 100 个点
-3. `run_xtb_labels.py`
-   - 批量提交 `GFN2-xTB` baseline 标注
-4. `run_target_labels.py`
-   - 批量提交 Gaussian `wB97X-D/6-31G*` target 标注
-5. `build_delta_dataset.py`
-   - 汇总 baseline 和 target 结果，构建统一 delta 数据集
-6. `train_main_model.py`
-   - 主模型学习 `delta_E + delta_F`
-   - 支持 `--submit-mode pbs`
-7. `train_aux_model.py`
-   - 辅助模型只学习 `delta_E`
-   - 支持 `--submit-mode pbs`
-8. `evaluate_uncertainty.py`
-   - 用 `|pred_main_delta_E - pred_aux_delta_E|` 评估不确定性
-   - 支持 `--submit-mode pbs`
+也就是说，主线已经从“只保证算得完”升级为“算完就能分析”。
 
-### 当前默认值
-
-- 几何池：400
-- 初始选点：250
-- 每轮新增上限：100
-- 主模型：学习 `delta_E + delta_F`
-- 辅助模型：学习 `delta_E`
-- 不确定性：两模型 `delta_E` 预测差绝对值
-- 收敛条件：高不确定性点比例 `< 5%`
-
-## 2. 哪些地方忠于论文，哪些地方做了简化
-
-### 论文一致
-
-- 初始点数默认 250
-- 每轮最多新增 100 个点
-- 主模型学习 `delta_E + delta_F`
-- 辅助模型只学习 `delta_E`
-- 不确定性定义为两者的 `delta_E` 预测差绝对值
-- 收敛判断采用高不确定性点比例 `< 5%`
-
-### 工程简化
-
-- 只保留 `ethene + 1,3-butadiene`
-- 不做 `C60`
-- 不做 `ANI-1ccx baseline`
-- target 从论文中的 `B3LYP/6-31G*` 改成 `wB97X-D/6-31G*`
-- 初始几何采样使用教学版随机微扰，而不是严格量子玻尔兹曼采样
-- Gaussian 不再走旧的 `RunG16.sh`，而是走 `MLatom + PBS`
-
-## 3. 目录说明
+## 目录结构
 
 ```text
 minimal_adl_ethene_butadiene/
-├─ configs/
-├─ data/
-│  ├─ raw/
-│  └─ processed/
-├─ geometries/
-│  └─ seed/
-├─ labels/
-│  ├─ gaussian/
-│  └─ xtb/
-├─ logs/
-├─ models/
-├─ results/
-├─ scripts/
-└─ src/minimal_adl/
+├── configs/
+├── data/
+│   ├── raw/
+│   └── processed/
+├── geometries/
+│   └── seed/
+├── labels/
+│   ├── gaussian/
+│   └── xtb/
+├── logs/
+├── models/
+├── results/
+├── scripts/
+└── src/minimal_adl/
 ```
 
-## 4. 环境准备
+## 环境准备
+当前默认训练环境名是 `ADL_env`。如果你的 PBS 训练环境不是这个名字，可以改 `configs/base.yaml` 中的 `cluster.conda_env`；如果你只是打开 notebook 做分析，可以继续使用单独的 `data_env`。
 
-这份子项目 README 只保留和当前仓库一致的那套安装口径。推荐环境名是 `ADL_env`，并直接复用集群系统程序：
+推荐的最小依赖栈包括：
 
-- `xtb`：`/share/apps/xtb-6.7.1/xtb-dist/bin/xtb`
-- `g16`：`/share/apps/gaussian/g16/g16`
+- `numpy`
+- `PyYAML`
+- `matplotlib`
+- `seaborn`
+- `joblib`
+- `scikit-learn`
+- `mlatom`
+- `torch`
+- `torchani`
+- `pyh5md`
 
-### 先确认你在“完整仓库 clone”里运行
-
-如果你是在 PBS 集群上跑这个项目，推荐在登录节点保留完整 Git 仓库，而不是只复制
-`minimal_adl_ethene_butadiene/` 子目录。正确做法是先在集群上：
+如果你要补齐 notebook 绘图环境，建议在分析环境 `data_env` 中先补最常缺的绘图库：
 
 ```bash
-cd /share/home/Chenlehui/work
-git clone https://github.com/LehuiChen/test_ADL.git
-cd test_ADL
-git status
+conda activate data_env
+python -m pip install "seaborn>=0.12"
 ```
 
-然后再进入这个子项目目录：
+如果 `data_env` 里还缺 `pandas`、`matplotlib` 或 `scikit-learn`，再按报错补装；不必为了分析 notebook 把整套训练依赖都装进 `data_env`。
+
+## 先做环境自检
+开始跑主线之前，建议先做两步：
 
 ```bash
-cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
-```
-
-以后代码更新时，请回到仓库根目录执行：
-
-```bash
-cd /share/home/Chenlehui/work/test_ADL
-git pull --ff-only
-cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
-```
-
-如果你只拷了子目录，没有上层 `.git`，那么 `git pull` 会失败，并提示
-`Not a git repository`。
-
-推荐兼容栈：
-
-- `Python 3.10`
-- `PyTorch 1.12.0`
-- `torchvision 0.13.0`
-- `torchaudio 0.12.0`
-- `cudatoolkit 11.3`
-- `TorchANI 2.2`
-
-推荐安装顺序：
-
-```bash
-source ~/.bashrc
-conda create -n ADL_env python=3.10 -y
 conda activate ADL_env
-
-conda install -y -n base conda-libmamba-solver
-conda config --set solver libmamba
-conda config --set channel_priority flexible
-
-conda install -y -c conda-forge numpy scipy pyyaml matplotlib
-conda install -y -c conda-forge joblib scikit-learn h5py statsmodels tqdm
-python -m pip install pyh5md
-conda install -y pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 cudatoolkit=11.3 -c pytorch -c conda-forge -c defaults
-conda install -y -c conda-forge pandas pyarrow rich typer ase zarr numcodecs fasteners huggingface_hub httpx ninja
-
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install "torchani==2.2" --no-deps
-python -m pip install mlatom --no-deps
+python scripts/check_environment.py --config configs/base.yaml --strict
+python scripts/check_environment.py --config configs/base.yaml --strict --test-mlatom-xtb
 ```
 
-> [!IMPORTANT]
-> 当前推荐兼容栈是 `PyTorch 1.12.0 + cudatoolkit 11.3 + TorchANI 2.2`。如果 GPU 节点驱动较老，例如 `470.94`，优先保持这一套，不要直接改成 `pytorch-cuda=12.1`。
-
-> [!WARNING]
-> 不要在已经固定好 `torch==1.12.0` 的环境里直接执行：
->
-> ```bash
-> python -m pip install mlatom
-> ```
->
-> 正确做法是：
->
-> ```bash
-> python -m pip install mlatom --no-deps
-> ```
->
-> 否则 `pip` 可能会把 `torch` 升级到 2.x，破坏复现环境。
-
-> [!NOTE]
-> 在登录节点上执行 `python -c "import torch; print(torch.cuda.is_available())"` 返回 `False` 是正常现象。请先进入 PBS 申请到的 GPU 节点，再判断 CUDA 是否可用。
-
-### 加载系统程序路径
+如果你已经在 GPU 节点内，也可以继续检查：
 
 ```bash
-source /share/apps/gaussian/g16-env.sh
-source /share/env/ips2018u1.env
-source ~/.bashrc
-conda activate ADL_env
-export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
-export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
+python scripts/check_environment.py --config configs/base.yaml --strict --expect-gpu
 ```
 
-在 PBS 子作业里，Gaussian 环境脚本有时会和严格模式冲突，报类似 `PERLLIB: unbound variable`，或者在非交互 shell 中返回非零退出码。当前仓库已经在 target PBS 环境块里对 `g16-env.sh` / `ips2018u1.env` 做了容错处理，随后再显式检查 `g16` 和 `GAUSS_EXEDIR` 是否可用，并把 `GAUSS_SCRDIR` 清理逻辑收紧到“只删除安全的 job scratch 目录”。
+自检报告默认会写到：
 
-建议先做基础检查：
+- `results/check_environment_latest.json`
+
+## 一键跑完整第一轮
+最推荐的命令是：
 
 ```bash
-which python
-python --version
-python -c "import yaml; print('PyYAML OK')"
-python -c "import mlatom as ml; print('mlatom OK')"
-python -c "import torchani; print('torchani OK')"
-python - <<'PY'
-import torch
-print("torch =", torch.__version__)
-print("torch cuda =", torch.version.cuda)
-print("cuda available =", torch.cuda.is_available())
-PY
-which xtb
-xtb --version
-which g16
+python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --submit-mode-labels pbs       --submit-mode-train pbs       --submit-mode-uq pbs
 ```
 
-安装完成后，先运行：
+如果你第一次上服务器，想先插入一个小样本联通测试：
 
 ```bash
-python scripts/check_environment.py
-python scripts/check_environment.py --test-mlatom-xtb
+python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --submit-mode-labels pbs       --submit-mode-train pbs       --submit-mode-uq pbs       --with-smoke-tests
 ```
 
-如果 `--test-mlatom-xtb` 报 `No module named 'pyscf'`，通常不是环境少装了 xTB，而是 MLatom 的通用方法分发提前导入了 PySCF 接口。当前仓库已经优先改为 xTB 专用接口，不需要额外安装 PySCF 才能跑 baseline。
+主控脚本固定覆盖：
 
-如果你已经进入 GPU 节点，再运行：
+1. 环境自检
+2. 几何池生成
+3. 初始选点
+4. baseline 标注
+5. target 标注
+6. delta 数据集构建
+7. 主模型训练
+8. 辅助模型训练
+9. 训练诊断产物导出
+10. UQ 评估
+11. 第 1 轮选点
+
+## 如何恢复或局部重跑
+`run_first_round_pipeline.py` 默认 `resume=true`。也就是说，如果标准产物已经存在，它会自动跳过已经完成的阶段。
+
+常用命令：
+
+只从训练阶段开始往后重跑：
 
 ```bash
-python scripts/check_environment.py --expect-gpu
-python scripts/check_environment.py --expect-gpu --test-mlatom-xtb
+python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --from-stage train_main_model       --submit-mode-train pbs       --submit-mode-uq pbs
 ```
 
-## 5. CPU / GPU 任务分工
+强制重跑训练及后续阶段：
 
-当前配置默认这样分流：
+```bash
+python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --from-stage train_main_model       --force       --submit-mode-train pbs       --submit-mode-uq pbs
+```
 
-- `xtb` baseline 标注：CPU 队列 `default`
-- Gaussian target 标注：CPU 队列 `default`
-- 主模型训练：GPU 队列 `GPU`
-- 辅助模型训练：GPU 队列 `GPU`
-- 不确定性评估：GPU 队列 `GPU`
+只想跑到训练诊断产物导出为止：
 
-也就是说，Gaussian 默认走 CPU 队列；GPU 主要留给 `ANI` 训练和预测。
+```bash
+python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --to-stage export_training_diagnostics       --submit-mode-labels pbs       --submit-mode-train pbs
+```
 
-### 关于 PBS 的 `extra_pbs_lines`
+## 训练后会自动生成哪些标准分析文件
+升级后，训练结束后会自动补齐这些产物：
 
-当前 `configs/base.yaml` 已经为四类任务都预留了：
+- `models/training_split.json`
+- `models/train_main_predictions.csv`
+- `models/train_aux_predictions.csv`
+- `models/train_main_history.json`
+- `models/train_aux_history.json`
+- `models/training_diagnostics.json`
+
+UQ 与主控流程产物则位于：
+
+- `results/uncertainty_latest.json`
+- `results/round_001_selection_summary.json`
+- `results/pipeline_run_summary.json`
+
+这些文件就是 `../docs/数据分析.ipynb` 的默认输入。
+
+## 如何分析结果
+训练和 UQ 跑完后，直接打开：
+
+- [../docs/数据分析.ipynb](../docs/数据分析.ipynb)
+
+标准路径下通常不需要先改 `CONFIG`；如果你切换到辅助模型分析，可以把 `MODEL_VIEW` 改成 `aux`。
+
+notebook 默认回答四个问题：
+
+1. 数据长什么样
+2. 模型训练得顺不顺
+3. 模型预测得准不准
+4. 模型为什么这样预测
+
+## PBS 任务分工
+当前配置默认分流如下：
+
+- `xTB` baseline 标注：CPU 队列
+- Gaussian target 标注：CPU 队列
+- 主模型训练：GPU 队列
+- 辅助模型训练：GPU 队列
+- 不确定性评估：GPU 队列
+
+当前 `base.yaml` 里已经给四类任务都预留了：
 
 - `cluster.resources_by_method.baseline.extra_pbs_lines`
 - `cluster.resources_by_method.target.extra_pbs_lines`
 - `cluster.resources_by_method.training.extra_pbs_lines`
 - `cluster.resources_by_method.uncertainty.extra_pbs_lines`
 
-默认这些字段是空列表，表示“只写队列、节点数、ppn、walltime”。
-如果你的机房对 GPU 作业还要求额外资源行，例如：
+如果你的机房要求额外资源语句，例如 `#PBS -l gpus=1`，就在对应的 `extra_pbs_lines` 里填写。
 
-```text
-#PBS -l gpus=1
-```
+## 还想看更细的说明
+建议继续读：
 
-或：
-
-```text
-#PBS -l ngpus=1
-```
-
-请把对应语法填进 `training` 和 `uncertainty` 的 `extra_pbs_lines`。
-
-## 6. 推荐的第一轮执行顺序
-
-如果你是第一次跑，推荐顺序是：
-
-1. 环境安装
-2. 版本检查
-3. GPU 节点 CUDA 检查
-4. `scripts/check_environment.py`
-5. 几何池生成
-6. 第 0 轮选点
-7. `mlatom + xtb` 最小联通检查
-8. 小样本 `xtb` 冒烟测试
-9. 小样本 Gaussian 冒烟测试
-10. 完整批次标注
-11. 构建数据集
-12. 主模型训练
-13. 辅助模型训练
-14. 不确定性评估
-15. 第 1 轮选点
-
-> [!IMPORTANT]
-> 第一次上集群时，不建议一开始就直接提交完整的 250 个 Gaussian 任务。先做小样本联通测试，更容易排查 PBS 环境变量、`xtb`/`g16` 路径、scratch 权限和 MLatom 调用链问题。
-
-具体命令请看：
-
+- [../docs/流程介绍.md](../docs/流程介绍.md)
 - [../docs/AIQM_FIRST_ROUND_RUNBOOK.md](../docs/AIQM_FIRST_ROUND_RUNBOOK.md)
-
-## 7. 关于 PBS 作业
-
-这个项目默认支持 PBS 提交：
-
-- `run_xtb_labels.py` 和 `run_target_labels.py` 默认是 `--submit-mode pbs`
-- `train_main_model.py`、`train_aux_model.py`、`evaluate_uncertainty.py` 支持 `--submit-mode {local,pbs}`
-- 训练和不确定性任务使用 `pbs` 模式时，会自动读取 `cluster.resources_by_method.training` 或 `cluster.resources_by_method.uncertainty`
-
-当前默认的 label 提交策略是 `worker`，不是“每个样本一个 qsub”。按 `configs/base.yaml` 的默认值：
-
-- `baseline` 会提交最多 `8` 个 worker 作业，每个 worker 申请 `nodes=1:ppn=16`，并在节点内并发 `4` 个 xTB 样本
-- `target` 会提交最多 `8` 个 worker 作业，每个 worker 申请 `nodes=1:ppn=16`，并在节点内并发 `2` 个 Gaussian 样本
-- 所以完整的 250 样本标注，不会一次性创建 250 到 500 个 PBS 小作业
-
-worker 作业本身的 PBS 文件和汇总日志位于：
-
-- `labels/xtb/jobs/worker_*/`
-- `labels/gaussian/jobs/worker_*/`
-
-单个样本的结果和日志仍然保留在原来的目录里：
-
-- `labels/xtb/<sample_id>/`
-- `labels/gaussian/<sample_id>/`
-
-如果以后确实想退回旧的逐样本提交模式，可以把 `cluster.resources_by_method.<baseline|target>.submission_strategy`
-改成 `per-sample`。
-
-每个作业目录通常会包含：
-
-- `job.pbs`
-- `status.json`
-- `stdout.log`
-- `stderr.log`
-- `label.json` 或阶段输出 JSON
-
-## 8. 重要提醒
-
-- 这个子项目按“先跑通第一轮”的目标组织，不追求第一次就扩展到全部体系和全部实验。
-- 如果 GPU 临时不可用，也可以把 `training.device` 改成 `cpu`，或者把 `training.ml_model_type` 切成 `KREG` 作为更保守的备用方案。
-- 当前仓库外层的 `adl/` 与 `static/` 没有被改动；这个子项目是独立的干净实现。
+- [../docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](../docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)

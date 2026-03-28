@@ -60,6 +60,8 @@ def main() -> None:
 
     try:
         state = train_delta_bundle(config=config, train_main=False, train_aux=True)
+        summary_path = Path(config["paths"]["models_dir"]) / config["training"].get("summary_filename", "training_summary.json")
+        state_path = Path(config["paths"]["models_dir"]) / config["training"].get("state_filename", "training_state.json")
         write_json(
             status_path,
             {
@@ -68,6 +70,13 @@ def main() -> None:
                 "device": config["training"]["device"],
                 "main_model_file": state.get("main_model_file"),
                 "aux_model_file": state.get("aux_model_file"),
+                "training_summary_file": str(summary_path.resolve()),
+                "training_state_file": str(state_path.resolve()),
+                "training_split_file": state.get("training_split_file"),
+                "train_main_predictions_file": state.get("train_main_predictions_file"),
+                "train_aux_predictions_file": state.get("train_aux_predictions_file"),
+                "train_main_history_file": state.get("train_main_history_file"),
+                "train_aux_history_file": state.get("train_aux_history_file"),
             },
         )
         print(f"辅助模型训练完成，输出文件：{state.get('aux_model_file')}")

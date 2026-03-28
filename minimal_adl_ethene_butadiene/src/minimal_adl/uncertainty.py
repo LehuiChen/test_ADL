@@ -3,8 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from .io_utils import write_json
-from .mlatom_bridge import build_molecular_database_from_geometry_manifest
-from .training import create_delta_model_bundle, load_training_state
 
 
 def evaluate_uncertainty_for_manifest(
@@ -14,6 +12,9 @@ def evaluate_uncertainty_for_manifest(
     output_path: str | Path,
 ) -> dict:
     """对一个几何池做不确定性评估。"""
+
+    from .mlatom_bridge import build_molecular_database_from_geometry_manifest
+    from .training import create_delta_model_bundle, load_training_state
 
     state = load_training_state(config)
     model = create_delta_model_bundle(config, config["paths"]["models_dir"])

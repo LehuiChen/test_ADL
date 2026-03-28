@@ -13,6 +13,14 @@ paths:
   models_dir: models
   logs_dir: logs
   results_dir: results
+  training_split_file: models/training_split.json
+  train_main_predictions_file: models/train_main_predictions.csv
+  train_aux_predictions_file: models/train_aux_predictions.csv
+  train_main_history_file: models/train_main_history.json
+  train_aux_history_file: models/train_aux_history.json
+  training_diagnostics_file: models/training_diagnostics.json
+  check_environment_report: results/check_environment_latest.json
+  pipeline_run_summary: results/pipeline_run_summary.json
 
 methods:
   baseline:
