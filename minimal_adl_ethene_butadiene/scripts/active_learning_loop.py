@@ -13,8 +13,62 @@ if str(SRC_DIR) not in sys.path:
 
 from minimal_adl.config import load_config
 from minimal_adl.geometry import load_manifest, write_manifest
-from minimal_adl.io_utils import read_json, write_json
+from minimal_adl.io_utils import read_json, timestamp_string, write_json
 from minimal_adl.uncertainty import select_next_round_samples
+
+
+def normalize_selected_ids(payload: dict) -> list[str]:
+    selected_ids = payload.get("selected_sample_ids")
+    if isinstance(selected_ids, list) and selected_ids:
+        return [str(item) for item in selected_ids]
+
+    selected_samples = payload.get("selected_samples", [])
+    if isinstance(selected_samples, list):
+        if selected_samples and isinstance(selected_samples[0], dict):
+            return [str(item.get("sample_id")) for item in selected_samples if item.get("sample_id") is not None]
+        return [str(item) for item in selected_samples]
+    return []
+
+
+def rebuild_round_history(results_dir: Path) -> dict:
+    round_rows = []
+    for summary_path in sorted(results_dir.glob("round_*_selection_summary.json")):
+        payload = read_json(summary_path)
+        round_index = int(payload.get("round_index", 0))
+        selected_sample_ids = normalize_selected_ids(payload)
+        selected_count = int(payload.get("selected_count") or payload.get("num_selected") or len(selected_sample_ids))
+        manifest_path = results_dir / f"round_{round_index:03d}_selected_manifest.json"
+        manifest_selected_count = None
+        if manifest_path.exists():
+            try:
+                manifest_selected_count = len(load_manifest(manifest_path))
+            except Exception:  # noqa: BLE001
+                manifest_selected_count = None
+
+        round_rows.append(
+            {
+                "round_index": round_index,
+                "selected_count": selected_count,
+                "selected_sample_ids": selected_sample_ids,
+                "num_pool_samples": payload.get("num_pool_samples"),
+                "num_uncertain_samples": payload.get("num_uncertain_samples"),
+                "uncertain_ratio": payload.get("uncertain_ratio"),
+                "converged": payload.get("converged"),
+                "selection_summary_file": str(summary_path.resolve()),
+                "selection_manifest_file": str(manifest_path.resolve()),
+                "selected_manifest_exists": manifest_path.exists(),
+                "manifest_selected_count": manifest_selected_count,
+                "updated_at": payload.get("updated_at") or timestamp_string(),
+            }
+        )
+
+    latest_round_index = max((row["round_index"] for row in round_rows), default=None)
+    return {
+        "total_rounds": len(round_rows),
+        "latest_round_index": latest_round_index,
+        "rounds": round_rows,
+        "updated_at": timestamp_string(),
+    }
 
 
 def main() -> None:
@@ -90,11 +144,16 @@ def main() -> None:
         max_new_points=int(al_cfg.get("max_new_points_per_round", 100)),
         convergence_ratio=float(al_cfg.get("convergence_ratio", 0.05)),
     )
+    selection["round_index"] = args.round_index
+    selection["selected_count"] = len(selection["selected_sample_ids"])
+    selection["updated_at"] = timestamp_string()
 
     selected_entries = [manifest_by_id[sample_id] for sample_id in selection["selected_sample_ids"] if sample_id in manifest_by_id]
     selection_manifest_path = results_dir / f"round_{args.round_index:03d}_selected_manifest.json"
     write_manifest(selected_entries, selection_manifest_path)
-    write_json(results_dir / f"round_{args.round_index:03d}_selection_summary.json", selection)
+    selection_summary_path = results_dir / f"round_{args.round_index:03d}_selection_summary.json"
+    write_json(selection_summary_path, selection)
+    write_json(results_dir / "active_learning_round_history.json", rebuild_round_history(results_dir))
 
     print(f"本轮新增样本数：{len(selected_entries)}")
     print(f"高不确定性比例：{selection['uncertain_ratio']:.4f}")

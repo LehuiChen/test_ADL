@@ -21,7 +21,7 @@
 5. [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
 
 - `流程介绍` 适合第一次读懂整个项目在做什么、每一步为什么存在、核心文件分别负责什么。
-- `数据分析` 适合分析本次或后续轮次跑出来的结果，默认围绕回归任务组织。
+- `数据分析` 适合分析本次或后续轮次跑出来的结果，默认围绕回归任务组织，并会自动识别最新轮次、汇总历史轮次。
 - `AIQM_FIRST_ROUND_RUNBOOK` 适合在服务器上按标准路径实际执行。
 
 ## 这次升级后的主线能力
@@ -82,6 +82,7 @@ python scripts/run_first_round_pipeline.py       --config configs/base.yaml     
 - `uncertainty_latest.json`
 - `round_001_selection_summary.json`
 - `round_001_selected_manifest.json`
+- `active_learning_round_history.json`
 - `pipeline_run_summary.json`
 - `check_environment_latest.json`
 
@@ -108,7 +109,7 @@ python scripts/run_first_round_pipeline.py       --config configs/base.yaml     
 - `models/train_main_predictions.csv`
 - `models/training_summary.json`
 - `results/uncertainty_latest.json`
-- `results/round_001_selection_summary.json`
+- `results/active_learning_round_history.json` 或 `results/round_*_selection_summary.json`
 
 如果你的服务器产物路径和标准路径一致，通常不需要先手改 notebook 顶部 `CONFIG`。
 

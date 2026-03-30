@@ -150,6 +150,7 @@ UQ 与主控流程产物则位于：
 
 - `results/uncertainty_latest.json`
 - `results/round_001_selection_summary.json`
+- `results/active_learning_round_history.json`
 - `results/pipeline_run_summary.json`
 
 这些文件就是 `../docs/数据分析.ipynb` 的默认输入。
@@ -161,7 +162,7 @@ UQ 与主控流程产物则位于：
 
 标准路径下通常不需要先改 `CONFIG`；如果你切换到辅助模型分析，可以把 `MODEL_VIEW` 改成 `aux`。
 
-notebook 默认回答四个问题：
+notebook 默认回答四个问题，并且会自动识别最新轮次、汇总历史轮次：
 
 1. 数据长什么样
 2. 模型训练得顺不顺

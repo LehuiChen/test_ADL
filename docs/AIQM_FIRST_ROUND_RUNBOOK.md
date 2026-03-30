@@ -14,6 +14,7 @@
 1. 先完成环境自检
 2. 再运行 `run_first_round_pipeline.py`
 3. 跑完直接打开 `docs/数据分析.ipynb`
+4. notebook 会自动识别最新轮次，并汇总所有已存在轮次的选点历史
 
 ---
 
