@@ -1,0 +1,13 @@
+﻿# Base dependencies
+numpy>=1.24
+PyYAML>=6.0
+mlatom>=3.18
+matplotlib>=3.7
+seaborn>=0.12
+joblib>=1.3
+scikit-learn>=1.3
+
+# Model backend notes (install in your training env)
+# torch is required for ANI/MACE/NequIP backends.
+# MACE backend: install one of `mace` or `mace-torch`.
+# Example (manual): pip install mace-torch

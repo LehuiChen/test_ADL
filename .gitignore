@@ -29,3 +29,40 @@ Thumbs.db
 !/minimal_adl_ethene_butadiene/logs/.gitkeep
 /minimal_adl_ethene_butadiene/results/*
 !/minimal_adl_ethene_butadiene/results/.gitkeep
+
+# MACE 并列工程运行产物
+/minimal_adl_ethene_butadiene_mace/data/raw/geometries/
+/minimal_adl_ethene_butadiene_mace/data/raw/geometry_pool_manifest.json
+/minimal_adl_ethene_butadiene_mace/data/raw/initial_selection_manifest.json
+/minimal_adl_ethene_butadiene_mace/data/processed/*.npz
+/minimal_adl_ethene_butadiene_mace/data/processed/*.json
+/minimal_adl_ethene_butadiene_mace/labels/xtb/*
+!/minimal_adl_ethene_butadiene_mace/labels/xtb/.gitkeep
+/minimal_adl_ethene_butadiene_mace/labels/gaussian/*
+!/minimal_adl_ethene_butadiene_mace/labels/gaussian/.gitkeep
+/minimal_adl_ethene_butadiene_mace/models/*
+!/minimal_adl_ethene_butadiene_mace/models/.gitkeep
+/minimal_adl_ethene_butadiene_mace/logs/*
+!/minimal_adl_ethene_butadiene_mace/logs/.gitkeep
+/minimal_adl_ethene_butadiene_mace/results/*
+!/minimal_adl_ethene_butadiene_mace/results/.gitkeep
+
+# NequIP 并列工程运行产物
+/minimal_adl_ethene_butadiene_nequip/data/raw/geometries/
+/minimal_adl_ethene_butadiene_nequip/data/raw/geometry_pool_manifest.json
+/minimal_adl_ethene_butadiene_nequip/data/raw/initial_selection_manifest.json
+/minimal_adl_ethene_butadiene_nequip/data/processed/*.npz
+/minimal_adl_ethene_butadiene_nequip/data/processed/*.json
+/minimal_adl_ethene_butadiene_nequip/labels/xtb/*
+!/minimal_adl_ethene_butadiene_nequip/labels/xtb/.gitkeep
+/minimal_adl_ethene_butadiene_nequip/labels/gaussian/*
+!/minimal_adl_ethene_butadiene_nequip/labels/gaussian/.gitkeep
+/minimal_adl_ethene_butadiene_nequip/models/*
+!/minimal_adl_ethene_butadiene_nequip/models/.gitkeep
+/minimal_adl_ethene_butadiene_nequip/logs/*
+!/minimal_adl_ethene_butadiene_nequip/logs/.gitkeep
+/minimal_adl_ethene_butadiene_nequip/results/*
+!/minimal_adl_ethene_butadiene_nequip/results/.gitkeep
+
+# Temporary workspace
+/tmp/
