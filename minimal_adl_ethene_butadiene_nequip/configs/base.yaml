@@ -1,6 +1,6 @@
 ﻿project:
   name: minimal_adl_ethene_butadiene_nequip
-  description: "ethene + 1,3-butadiene 鐨勬渶灏?active delta-learning 鏁欏鐗堝疄鐜?
+  description: "ethene + 1,3-butadiene 的最小 active delta-learning 教学版实现"
 
 paths:
   seed_geometry: geometries/seed/da_eqmol_seed.xyz
@@ -76,7 +76,8 @@ cluster:
   poll_timeout_seconds: 86400
   resources_by_method:
     baseline:
-      # worker: 姣忎釜 PBS 浣滀笟璁ら涓€鎵规牱鏈紝骞跺湪鑺傜偣鍐呯户缁苟鍙戞墽琛屻€?      submission_strategy: worker
+      # worker: 每个 PBS 作业认领一批样本，并在节点内继续并发执行。
+      submission_strategy: worker
       queue: default
       nodes: 1
       ppn: 16
@@ -85,7 +86,8 @@ cluster:
       local_parallelism: 4
       extra_pbs_lines: []
     target:
-      # 16 鏍歌妭鐐逛笂锛孏aussian 榛樿鎸?2 骞跺彂鏉ュ悆婊?2 x 8 绾跨▼銆?      submission_strategy: worker
+      # 16 核节点上，Gaussian 默认按 2 并发来吃满 2 x 8 线程。
+      submission_strategy: worker
       queue: default
       nodes: 1
       ppn: 16
@@ -98,7 +100,8 @@ cluster:
       nodes: 1
       ppn: 8
       walltime: 12:00:00
-      # 濡傛灉鏈烘埧浠ュ悗瑕佹眰棰濆 GPU 璧勬簮瀛楁锛屽彲鏀规垚锛?      # extra_pbs_lines:
+      # 如果机房以后要求额外 GPU 资源字段，可改成：
+      # extra_pbs_lines:
       #   - "#PBS -l gpus=1"
       extra_pbs_lines: []
     uncertainty:
@@ -152,4 +155,5 @@ cluster:
   cleanup_blocks:
     target:
       - if [ -n "${GAUSS_SCRDIR:-}" ] && [ "$GAUSS_SCRDIR" != "/" ] && [ "$GAUSS_SCRDIR" != "/tmp" ] && [ "$GAUSS_SCRDIR" != "/tmp/" ] && [ -d "$GAUSS_SCRDIR" ]; then rm -rf "$GAUSS_SCRDIR"; fi
+
 

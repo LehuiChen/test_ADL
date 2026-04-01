@@ -1,4 +1,4 @@
-project:
+﻿project:
   name: minimal_adl_ethene_butadiene
   description: "ethene + 1,3-butadiene 的最小 active delta-learning 教学版实现"
 
@@ -155,3 +155,4 @@ cluster:
   cleanup_blocks:
     target:
       - if [ -n "${GAUSS_SCRDIR:-}" ] && [ "$GAUSS_SCRDIR" != "/" ] && [ "$GAUSS_SCRDIR" != "/tmp" ] && [ "$GAUSS_SCRDIR" != "/tmp/" ] && [ -d "$GAUSS_SCRDIR" ]; then rm -rf "$GAUSS_SCRDIR"; fi
+
