@@ -1,160 +1,160 @@
-﻿# 娴佺▼浠嬬粛
+# 流程介绍
 
-杩欎唤鏂囨。闈㈠悜绗竴娆℃帴瑙﹁繖涓粨搴撶殑鍚屽锛岄粯璁や綘涓嶆槸璁＄畻鍖栧鑳屾櫙锛屼篃涓嶆槸鏈哄櫒瀛︿範鑳屾櫙銆傜洰鏍囦笉鏄妸鎵€鏈夋湳璇竴娆¤瀹岋紝鑰屾槸璁╀綘鍏堝缓绔嬩竴寮犳竻鏅扮殑鈥滃叏灞€鍦板浘鈥濓細
+这份文档面向第一次接触这个仓库的同学，默认你不是计算化学背景，也不是机器学习背景。目标不是把所有术语一次讲完，而是让你先建立一张清晰的“全局地图”：
 
-- 杩欎釜椤圭洰鍦ㄥ仛浠€涔?
-- 姣忎竴姝ヤ负浠€涔堝瓨鍦?
-- 鍏抽敭鏂囦欢鍒嗗埆璐熻矗浠€涔?
-- 鍏紡鍒板簳鍦ㄨ浠€涔?
-- 璺戝畬浠ュ悗搴旇鐪嬪摢浜涚粨鏋?
+- 这个项目在做什么
+- 每一步为什么存在
+- 关键文件分别负责什么
+- 公式到底在说什么
+- 跑完以后应该看哪些结果
 
-鏈枃鍙鐩栧綋鍓嶆帹鑽愪富绾?`minimal_adl_ethene_butadiene/`锛屼笉灞曞紑浠撳簱涓殑鍘嗗彶鐩綍 `adl/` 鍜?`static/`銆?
+本文只覆盖当前推荐主线 `minimal_adl_ethene_butadiene/`，不展开仓库中的历史目录 `adl/` 和 `static/`。
 
-## 1. 椤圭洰鍦ㄥ仛浠€涔?
-濡傛灉鍙敤涓€鍙ユ棩甯歌瑷€瑙ｉ噴锛岃繖涓」鐩鍋氱殑鏄細
+## 1. 项目在做什么
+如果只用一句日常语言解释，这个项目要做的是：
 
-鎴戜滑鎯冲緱鍒颁竴涓€滅畻寰楀揩锛屼絾灏介噺鎺ヨ繎楂樼簿搴﹂噺鍖栫粨鏋溾€濈殑鏈哄櫒瀛︿範鍔胯兘妯″瀷銆?
+我们想得到一个“算得快，但尽量接近高精度量化结果”的机器学习势能模型。
 
-杩欓噷浼氬弽澶嶅嚭鐜板洓涓叧閿瘝锛?
+这里会反复出现四个关键词：
 
 - `baseline`
-  鎸囦究瀹溿€佸揩閫熴€佽兘澶ц妯¤窇鐨勫弬鑰冩柟娉曘€傝繖閲屾槸 `GFN2-xTB`銆傚畠鐨勪紭鐐规槸蹇紝缂虹偣鏄簿搴︿笉濡傛洿楂樼骇鐨勯噺鍖栨柟娉曘€?
+  指便宜、快速、能大规模跑的参考方法。这里是 `GFN2-xTB`。它的优点是快，缺点是精度不如更高级的量化方法。
 - `target`
-  鎸囨垜浠湡姝ｅ笇鏈涙帴杩戠殑楂樼簿搴︽爣绛俱€傝繖閲屾槸 Gaussian 鐨?`wB97X-D/6-31G*`銆傚畠鏇村噯锛屼絾涔熸洿鎱€佹洿璐点€?
+  指我们真正希望接近的高精度标签。这里是 Gaussian 的 `wB97X-D/6-31G*`。它更准，但也更慢、更贵。
 - `delta-learning`
-  涓嶈妯″瀷鐩存帴鍘诲楂樼簿搴︾粷瀵瑰€硷紝鑰屾槸鍙鈥滈珮绮惧害缁撴灉姣斾綆绮惧害缁撴灉澶氬嚭鏉ュ灏戜慨姝ｉ噺鈥濄€?
+  不让模型直接去学高精度绝对值，而是只学“高精度结果比低精度结果多出来多少修正量”。
 - `active learning`
-  涓嶆槸鎶婂嚑浣曟睜閲屾墍鏈夋牱鏈兘鍋氶珮鎴愭湰鏍囨敞锛岃€屾槸鍏堣缁冧竴涓垵鐗堟ā鍨嬶紝鍐嶇敤涓嶇‘瀹氭€у幓鎸戔€滄渶鍊煎緱琛ユ爣鈥濈殑鏍锋湰銆?
+  不是把几何池里所有样本都做高成本标注，而是先训练一个初版模型，再用不确定性去挑“最值得补标”的样本。
 
-鎶婂畠浠繛鎴愪竴鍙ユ洿瀹屾暣鐨勮瘽锛屽氨鏄細
+把它们连成一句更完整的话，就是：
 
-鍏堣 `xTB` 缁欐墍鏈夊嚑浣曟彁渚?baseline锛屽啀鐢ㄨ緝灏戠殑 Gaussian 鏍囩鏋勯€?`delta` 鏁版嵁闆嗭紝璁粌涓绘ā鍨嬪拰杈呭姪妯″瀷锛岀敤涓よ€呴娴嬪樊寮備及璁′笉纭畾鎬э紝鐒跺悗鍙妸鏈€涓嶇‘瀹氱殑鏍锋湰閫佽繘涓嬩竴杞爣娉ㄣ€?
+先让 `xTB` 给所有几何提供 baseline，再用较少的 Gaussian 标签构造 `delta` 数据集，训练主模型和辅助模型，用两者预测差异估计不确定性，然后只把最不确定的样本送进下一轮标注。
 
-## 2. 鎬绘祦绋嬪浘
+## 2. 总流程图
 
 ```mermaid
 flowchart TD
-    A["鐜鍑嗗"] --> B["鍑犱綍姹?]
-    B --> C["鍒濆閫夌偣"]
+    A["环境准备"] --> B["几何池"]
+    B --> C["初始选点"]
     C --> D["smoke test"]
-    D --> E["鏍囨敞"]
-    E --> F["delta 鏁版嵁闆?]
-    F --> G["涓绘ā鍨嬭缁?]
-    G --> H["杈呭姪妯″瀷璁粌"]
-    H --> I["涓嶇‘瀹氭€ц瘎浼?]
-    I --> J["绗?1 杞€夌偣"]
-    J --> K["鏀舵暃鍒ゆ柇"]
+    D --> E["标注"]
+    E --> F["delta 数据集"]
+    F --> G["主模型训练"]
+    G --> H["辅助模型训练"]
+    H --> I["不确定性评估"]
+    I --> J["第 1 轮选点"]
+    J --> K["收敛判断"]
 
-    A1["妫€鏌?Python / MLatom / xTB / Gaussian / GPU"] -.-> A
-    B1["浠庣瀛愮粨鏋勯殢鏈哄井鎵扮敓鎴愬嚑浣曟睜"] -.-> B
-    C1["绗?0 杞厛閫夊嚭鍒濆璁粌鏍锋湰"] -.-> C
-    D1["鍏堝仛灏戦噺鑱旈€氭鏌ワ紝閬垮厤鏁存壒澶辫触"] -.-> D
-    E1["寰楀埌 baseline 涓?target 鏍囩"] -.-> E
-    F1["鏋勯€?delta_E 涓?delta_F"] -.-> F
-    G1["涓绘ā鍨嬪涔?delta_E + delta_F"] -.-> G
-    H1["杈呭姪妯″瀷鍙涔?delta_E"] -.-> H
-    I1["鐢ㄤ富杈呮ā鍨嬪樊鍊煎仛 UQ"] -.-> I
-    J1["鎸変笉纭畾鎬ч€夊嚭 round 1 鏂版牱鏈?] -.-> J
-    K1["楂樹笉纭畾鎬ф瘮渚嬩綆浜庨槇鍊煎垯鍒や负鏀舵暃"] -.-> K
+    A1["检查 Python / MLatom / xTB / Gaussian / GPU"] -.-> A
+    B1["从种子结构随机微扰生成几何池"] -.-> B
+    C1["第 0 轮先选出初始训练样本"] -.-> C
+    D1["先做少量联通检查，避免整批失败"] -.-> D
+    E1["得到 baseline 与 target 标签"] -.-> E
+    F1["构造 delta_E 与 delta_F"] -.-> F
+    G1["主模型学习 delta_E + delta_F"] -.-> G
+    H1["辅助模型只学习 delta_E"] -.-> H
+    I1["用主辅模型差值做 UQ"] -.-> I
+    J1["按不确定性选出 round 1 新样本"] -.-> J
+    K1["高不确定性比例低于阈值则判为收敛"] -.-> K
 ```
 
-鍦ㄥ綋鍓嶅崌绾у悗鐨勪富绾块噷锛岃繖涓祦绋嬪彲浠ョ洿鎺ョ敱锛?
+在当前升级后的主线里，这个流程可以直接由：
 
 - `minimal_adl_ethene_butadiene/scripts/run_first_round_pipeline.py`
 
-涓€閿紪鎺掑畬鎴愩€?
+一键编排完成。
 
-## 3. 姣忎竴姝ョ殑杈撳叆銆佽緭鍑恒€佺洰鐨?
+## 3. 每一步的输入、输出、目的
 
-| 闃舵 | 杈撳叆 | 鍋氫簡浠€涔?| 杈撳嚭 | 鐩殑 |
+| 阶段 | 输入 | 做了什么 | 输出 | 目的 |
 | --- | --- | --- | --- | --- |
-| 鐜鍑嗗 | `configs/base.yaml`銆佹湇鍔″櫒鐜銆乣ADL_env` | 妫€鏌?Python 鍖呫€亁TB銆丟aussian銆丟PU 鍜?MLatom 鑱旈€氭儏鍐?| `results/check_environment_latest.json` | 鍏堢‘璁ゅ悗闈笉浼氬洜鐜闂鏁存壒澶辫触 |
-| 鍑犱綍姹?| `geometries/seed/da_eqmol_seed.xyz` | 瀵圭瀛愮粨鏋勫仛闅忔満寰壈锛岀敓鎴愬€欓€夊嚑浣曟睜 | `data/raw/geometries/`銆乣data/raw/geometry_pool_manifest.json` | 鍑嗗涓诲姩瀛︿範鐨勫€欓€夋睜 |
-| 鍒濆閫夌偣 | 鍑犱綍姹?manifest | 绗?0 杞厛浠庢睜涓寫鍑哄垵濮嬭缁冩牱鏈?| `data/raw/initial_selection_manifest.json` | 缁欑涓€杞缁冨噯澶囪捣濮嬫暟鎹?|
-| smoke test | 灏戦噺宸查€夋牱鏈拰褰撳墠鐜 | 鍏堝仛灏戦噺 `xTB` / Gaussian 鑱旈€氭鏌?| 灏戦噺 `label.json`銆乣status.json` 鍜屾棩蹇?| 閬垮厤鐩存帴鎻愪氦瀹屾暣鎵规鎵嶅彂鐜拌矾寰勬垨 PBS 鏈夐棶棰?|
-| 鏍囨敞 | 鍒濆鏍锋湰 manifest銆乥aseline/target 閰嶇疆 | 鍒嗗埆璁＄畻 `GFN2-xTB` 涓?`wB97X-D/6-31G*` 鐨勮兘閲忓拰鍔?| `labels/xtb/<sample_id>/label.json`銆乣labels/gaussian/<sample_id>/label.json` | 寰楀埌鏋勯€?delta 鏁版嵁闆嗘墍闇€鐨勪袱濂楁爣绛?|
-| delta 鏁版嵁闆?| 鍑犱綍鏂囦欢銆乥aseline 鏍囩銆乼arget 鏍囩 | 瀵归綈鏍锋湰骞惰绠楄兘閲忓樊鍜屽姏宸?| `data/processed/delta_dataset.npz`銆乣data/processed/delta_dataset_metadata.json` | 缁欒缁冮樁娈垫彁渚涚粺涓€杈撳叆 |
-| 涓绘ā鍨嬭缁?| delta 鏁版嵁闆?| 瀛︿範 `delta_E + delta_F` | `models/delta_main_model.pt` 鍙婅缁冩憳瑕?| 寤虹珛涓婚娴嬫ā鍨?|
-| 杈呭姪妯″瀷璁粌 | delta 鏁版嵁闆?| 鍙涔?`delta_E` | `models/delta_aux_model.pt` 鍙婅缁冩憳瑕?| 褰㈡垚绗簩涓瑙掞紝鐢ㄤ簬 UQ |
-| 璁粌璇婃柇瀵煎嚭 | 璁粌鐘舵€佷笌妯″瀷鏂囦欢 | 缁熶竴瀵煎嚭 split銆侀€愭牱鏈娴嬨€乭istory 涓庤瘖鏂憳瑕?| `models/training_split.json`銆乣models/train_main_predictions.csv`銆乣models/train_main_history.json` 绛?| 璁?notebook 涓嶅啀缂哄垎鏋愯緭鍏?|
-| 涓嶇‘瀹氭€ц瘎浼?| 涓?杈呮ā鍨嬨€佸畬鏁村嚑浣曟睜 | 瀵规睜涓牱鏈仛棰勬祴骞惰绠?UQ | `results/uncertainty_latest.json` | 鎵惧嚭妯″瀷鏈€娌℃妸鎻＄殑鏍锋湰 |
-| 绗?1 杞€夌偣 | UQ 缁撴灉銆佸凡鏍囨敞鏍锋湰鍒楄〃 | 杩囨护宸叉爣娉ㄦ牱鏈苟鎸?UQ 浠庨珮鍒颁綆閫夌偣 | `results/round_001_selection_summary.json`銆乣results/round_001_selected_manifest.json` | 涓轰笅涓€杞ˉ鏍囧仛鍑嗗 |
-| 鏀舵暃鍒ゆ柇 | 绗?1 杞€夌偣缁熻 | 璁＄畻楂樹笉纭畾鎬ф牱鏈瘮渚?| `converged = true/false` | 鍐冲畾鏄惁缁х画涓嬩竴杞富鍔ㄥ涔?|
+| 环境准备 | `configs/base.yaml`、服务器环境、`ADL_env` | 检查 Python 包、xTB、Gaussian、GPU 和 MLatom 联通情况 | `results/check_environment_latest.json` | 先确认后面不会因环境问题整批失败 |
+| 几何池 | `geometries/seed/da_eqmol_seed.xyz` | 对种子结构做随机微扰，生成候选几何池 | `data/raw/geometries/`、`data/raw/geometry_pool_manifest.json` | 准备主动学习的候选池 |
+| 初始选点 | 几何池 manifest | 第 0 轮先从池中挑出初始训练样本 | `data/raw/initial_selection_manifest.json` | 给第一轮训练准备起始数据 |
+| smoke test | 少量已选样本和当前环境 | 先做少量 `xTB` / Gaussian 联通检查 | 少量 `label.json`、`status.json` 和日志 | 避免直接提交完整批次才发现路径或 PBS 有问题 |
+| 标注 | 初始样本 manifest、baseline/target 配置 | 分别计算 `GFN2-xTB` 与 `wB97X-D/6-31G*` 的能量和力 | `labels/xtb/<sample_id>/label.json`、`labels/gaussian/<sample_id>/label.json` | 得到构造 delta 数据集所需的两套标签 |
+| delta 数据集 | 几何文件、baseline 标签、target 标签 | 对齐样本并计算能量差和力差 | `data/processed/delta_dataset.npz`、`data/processed/delta_dataset_metadata.json` | 给训练阶段提供统一输入 |
+| 主模型训练 | delta 数据集 | 学习 `delta_E + delta_F` | `models/delta_main_model.pt` 及训练摘要 | 建立主预测模型 |
+| 辅助模型训练 | delta 数据集 | 只学习 `delta_E` | `models/delta_aux_model.pt` 及训练摘要 | 形成第二个视角，用于 UQ |
+| 训练诊断导出 | 训练状态与模型文件 | 统一导出 split、逐样本预测、history 与诊断摘要 | `models/training_split.json`、`models/train_main_predictions.csv`、`models/train_main_history.json` 等 | 让 notebook 不再缺分析输入 |
+| 不确定性评估 | 主/辅模型、完整几何池 | 对池中样本做预测并计算 UQ | `results/uncertainty_latest.json` | 找出模型最没把握的样本 |
+| 第 1 轮选点 | UQ 结果、已标注样本列表 | 过滤已标注样本并按 UQ 从高到低选点 | `results/round_001_selection_summary.json`、`results/round_001_selected_manifest.json` | 为下一轮补标做准备 |
+| 收敛判断 | 第 1 轮选点统计 | 计算高不确定性样本比例 | `converged = true/false` | 决定是否继续下一轮主动学习 |
 
-## 4. 鏍稿績鏂囦欢璇存槑琛?
-涓嬮潰鍙鐩?`minimal_adl_ethene_butadiene/` 鐨勬牳蹇冩枃浠讹紝鎸夋ā鍧楀垎缁勮鏄庛€?
+## 4. 核心文件说明表
+下面只覆盖 `minimal_adl_ethene_butadiene/` 的核心文件，按模块分组说明。
 
-### 4.1 閰嶇疆涓庤緭鍏?
+### 4.1 配置与输入
 
-| 鏂囦欢 | 鐢ㄩ€?|
+| 文件 | 用途 |
 | --- | --- |
-| `minimal_adl_ethene_butadiene/configs/base.yaml` | 鏁翠釜椤圭洰鐨勬€婚厤缃叆鍙ｏ紝瀹氫箟璺緞銆侀噰鏍锋暟銆佽缁冨弬鏁般€佷富鍔ㄥ涔犻槇鍊笺€丳BS 璧勬簮鍜岀幆澧冨潡銆傚綋鍓嶉粯璁?PBS 璁粌鐜鍚嶆槸 `ADL_env`銆?|
-| `minimal_adl_ethene_butadiene/geometries/seed/da_eqmol_seed.xyz` | 绉嶅瓙鍑犱綍锛屽嚑浣曟睜灏辨槸鍦ㄥ畠鐨勫熀纭€涓婂仛闅忔満寰壈寰楀埌鐨勩€?|
+| `minimal_adl_ethene_butadiene/configs/base.yaml` | 整个项目的总配置入口，定义路径、采样数、训练参数、主动学习阈值、PBS 资源和环境块。当前默认 PBS 训练环境名是 `ADL_env`。 |
+| `minimal_adl_ethene_butadiene/geometries/seed/da_eqmol_seed.xyz` | 种子几何，几何池就是在它的基础上做随机微扰得到的。 |
 
-### 4.2 娴佺▼鑴氭湰
+### 4.2 流程脚本
 
-| 鏂囦欢 | 鐢ㄩ€?|
+| 文件 | 用途 |
 | --- | --- |
-| `minimal_adl_ethene_butadiene/scripts/sample_initial_geometries.py` | 浠庣瀛愮粨鏋勭敓鎴愬嚑浣曟睜锛屽苟鍐欏嚭 pool manifest銆?|
-| `minimal_adl_ethene_butadiene/scripts/active_learning_loop.py` | 璐熻矗鍒濆閫夌偣锛屼互鍙婃牴鎹?UQ 缁撴灉閫夋嫨涓嬩竴杞牱鏈€?|
-| `minimal_adl_ethene_butadiene/scripts/run_xtb_labels.py` | 鎵归噺鎻愪氦 baseline `xTB` 鏍囨敞浠诲姟銆?|
-| `minimal_adl_ethene_butadiene/scripts/run_target_labels.py` | 鎵归噺鎻愪氦 target Gaussian 鏍囨敞浠诲姟銆?|
-| `minimal_adl_ethene_butadiene/scripts/build_delta_dataset.py` | 姹囨€?baseline 鍜?target 缁撴灉锛屾瀯寤?`delta_dataset.npz`銆?|
-| `minimal_adl_ethene_butadiene/scripts/train_main_model.py` | 璁粌涓绘ā鍨嬶紝瀛︿範 `delta_E + delta_F`銆?|
-| `minimal_adl_ethene_butadiene/scripts/train_aux_model.py` | 璁粌杈呭姪妯″瀷锛屽彧瀛︿範 `delta_E`銆?|
-| `minimal_adl_ethene_butadiene/scripts/evaluate_uncertainty.py` | 鐢ㄤ富妯″瀷鍜岃緟鍔╂ā鍨嬪鍑犱綍姹犲仛棰勬祴锛岃緭鍑?UQ 缁撴灉銆?|
-| `minimal_adl_ethene_butadiene/scripts/check_environment.py` | 妫€鏌ヤ緷璧栥€佸懡浠ゃ€丟PU銆丮Latom-xTB 鑱旈€氭儏鍐碉紝鏄紑璺戝墠鏈€閲嶈鐨勮嚜妫€鑴氭湰銆?|
+| `minimal_adl_ethene_butadiene/scripts/sample_initial_geometries.py` | 从种子结构生成几何池，并写出 pool manifest。 |
+| `minimal_adl_ethene_butadiene/scripts/active_learning_loop.py` | 负责初始选点，以及根据 UQ 结果选择下一轮样本。 |
+| `minimal_adl_ethene_butadiene/scripts/run_xtb_labels.py` | 批量提交 baseline `xTB` 标注任务。 |
+| `minimal_adl_ethene_butadiene/scripts/run_target_labels.py` | 批量提交 target Gaussian 标注任务。 |
+| `minimal_adl_ethene_butadiene/scripts/build_delta_dataset.py` | 汇总 baseline 和 target 结果，构建 `delta_dataset.npz`。 |
+| `minimal_adl_ethene_butadiene/scripts/train_main_model.py` | 训练主模型，学习 `delta_E + delta_F`。 |
+| `minimal_adl_ethene_butadiene/scripts/train_aux_model.py` | 训练辅助模型，只学习 `delta_E`。 |
+| `minimal_adl_ethene_butadiene/scripts/evaluate_uncertainty.py` | 用主模型和辅助模型对几何池做预测，输出 UQ 结果。 |
+| `minimal_adl_ethene_butadiene/scripts/check_environment.py` | 检查依赖、命令、GPU、MLatom-xTB 联通情况，是开跑前最重要的自检脚本。 |
 
-### 4.3 鏂板鐨勪富鎺т笌鍒嗘瀽鑴氭湰
+### 4.3 新增的主控与分析脚本
 
-| 鏂囦欢 | 鐢ㄩ€?|
+| 文件 | 用途 |
 | --- | --- |
-| `minimal_adl_ethene_butadiene/scripts/run_first_round_pipeline.py` | 涓€閿紪鎺掔涓€杞富绾匡紝鏀寔 `resume`銆乣--from-stage`銆乣--to-stage` 鍜?`--force`銆?|
-| `minimal_adl_ethene_butadiene/scripts/export_training_diagnostics.py` | 鎶?split銆乸redictions銆乭istory 鍜岃缁冭瘖鏂俊鎭暣鐞嗘垚 notebook 榛樿鍙鐨勬爣鍑嗘枃浠躲€?|
+| `minimal_adl_ethene_butadiene/scripts/run_first_round_pipeline.py` | 一键编排第一轮主线，支持 `resume`、`--from-stage`、`--to-stage` 和 `--force`。 |
+| `minimal_adl_ethene_butadiene/scripts/export_training_diagnostics.py` | 把 split、predictions、history 和训练诊断信息整理成 notebook 默认可读的标准文件。 |
 
-### 4.4 鏍稿績妯″潡
+### 4.4 核心模块
 
-| 鏂囦欢 | 鐢ㄩ€?|
+| 文件 | 用途 |
 | --- | --- |
-| `minimal_adl_ethene_butadiene/src/minimal_adl/geometry.py` | 璇诲啓鍑犱綍鏂囦欢銆佺敓鎴愰殢鏈哄井鎵板嚑浣曘€佺淮鎶?manifest銆?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/dataset.py` | 璇诲彇鏍囨敞缁撴灉锛屾瀯寤哄拰鍔犺浇 `delta` 鏁版嵁闆嗐€?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/label_jobs.py` | 缁勭粐鎵归噺鏍囨敞浠诲姟锛屾敮鎸佹湰鍦拌繍琛屻€丳BS 鍗曟牱鏈彁浜ゅ拰 worker 妯″紡銆?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/mlatom_bridge.py` | 鎶婇」鐩€昏緫鎺ュ埌 MLatom锛岃礋璐ｆ柟娉曞垱寤恒€佹爣娉ㄣ€佹暟鎹泦杞垚 MLatom 鏁版嵁搴撱€?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/training.py` | 鍒涘缓涓?杈呮ā鍨?bundle锛岃缁冩ā鍨嬶紝璇诲彇璁粌鐘舵€併€?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/delta_model.py` | 瀹氫箟涓绘ā鍨嬪拰杈呭姪妯″瀷鐨勬渶灏忓皝瑁咃紝璐熻矗璁粌銆侀娴嬨€佹寚鏍囨眹鎬诲拰鍒嗘瀽浜х墿瀵煎嚭銆?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/uncertainty.py` | 璁＄畻姣忎釜鏍锋湰鐨?UQ锛屽苟鏍规嵁闃堝€肩敓鎴愪笅涓€杞€夌偣缁撴灉銆?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/pbs.py` | 鐢熸垚 PBS 鑴氭湰銆佹彁浜や綔涓氥€佺瓑寰呯姸鎬佹枃浠躲€?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/config.py` | 鍔犺浇 YAML 閰嶇疆锛屽苟鎶婄浉瀵硅矾寰勮В鏋愭垚缁濆璺緞銆?|
-| `minimal_adl_ethene_butadiene/src/minimal_adl/io_utils.py` | JSON銆丆SV 鍜屾枃鏈鍐欍€佺洰褰曞垱寤恒€佹椂闂存埑绛夐€氱敤宸ュ叿銆?|
+| `minimal_adl_ethene_butadiene/src/minimal_adl/geometry.py` | 读写几何文件、生成随机微扰几何、维护 manifest。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/dataset.py` | 读取标注结果，构建和加载 `delta` 数据集。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/label_jobs.py` | 组织批量标注任务，支持本地运行、PBS 单样本提交和 worker 模式。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/mlatom_bridge.py` | 把项目逻辑接到 MLatom，负责方法创建、标注、数据集转成 MLatom 数据库。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/training.py` | 创建主/辅模型 bundle，训练模型，读取训练状态。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/delta_model.py` | 定义主模型和辅助模型的最小封装，负责训练、预测、指标汇总和分析产物导出。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/uncertainty.py` | 计算每个样本的 UQ，并根据阈值生成下一轮选点结果。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/pbs.py` | 生成 PBS 脚本、提交作业、等待状态文件。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/config.py` | 加载 YAML 配置，并把相对路径解析成绝对路径。 |
+| `minimal_adl_ethene_butadiene/src/minimal_adl/io_utils.py` | JSON、CSV 和文本读写、目录创建、时间戳等通用工具。 |
 
-### 4.5 杈呭姪鑴氭湰
+### 4.5 辅助脚本
 
-| 鏂囦欢 | 鐢ㄩ€?|
+| 文件 | 用途 |
 | --- | --- |
-| `minimal_adl_ethene_butadiene/scripts/execute_label_job.py` | 鐪熸鎵ц鍗曚釜鏍锋湰鐨?baseline 鎴?target 鏍囨敞浠诲姟銆?|
-| `minimal_adl_ethene_butadiene/scripts/execute_label_batch.py` | 鍦ㄤ竴涓?PBS worker 浣滀笟閲屽苟琛屾墽琛屼竴鎵规爣娉ㄤ换鍔°€?|
-| `minimal_adl_ethene_butadiene/scripts/optimize_ts.py` | 鍙€夊伐鍏凤紝鐢?MLatom 閰嶅悎 `xTB` 鎴?Gaussian 鍋?TS 浼樺寲锛屼笉灞炰簬绗竴杞富绾裤€?|
+| `minimal_adl_ethene_butadiene/scripts/execute_label_job.py` | 真正执行单个样本的 baseline 或 target 标注任务。 |
+| `minimal_adl_ethene_butadiene/scripts/execute_label_batch.py` | 在一个 PBS worker 作业里并行执行一批标注任务。 |
+| `minimal_adl_ethene_butadiene/scripts/optimize_ts.py` | 可选工具，用 MLatom 配合 `xTB` 或 Gaussian 做 TS 优化，不属于第一轮主线。 |
 
-## 5. 鏍稿績鍘熺悊涓庡叕寮?
+## 5. 核心原理与公式
 
-### 5.1 鍑犱綍閲囨牱
-鍑犱綍姹犱笉鏄嚟绌烘潵鐨勶紝鑰屾槸鍦ㄧ瀛愮粨鏋勯檮杩戝仛灏忓箙闅忔満鎵板姩锛?
+### 5.1 几何采样
+几何池不是凭空来的，而是在种子结构附近做小幅随机扰动：
 
 \[
 R_{new} = R_{seed} + \operatorname{clip}(\epsilon, -d_{max}, d_{max})
 \]
 
-鐩磋鐞嗚В鏄細鍥寸潃涓€涓凡鐭ュ悎鐞嗙粨鏋勶紝杞诲井鎺ㄤ竴鎺ㄣ€佹媺涓€鎷夛紝寰楀埌涓€鎵圭浉浼间絾涓嶅畬鍏ㄧ浉鍚岀殑鍑犱綍銆?
+直观理解是：围着一个已知合理结构，轻微推一推、拉一拉，得到一批相似但不完全相同的几何。
 
-- `R_seed` 鏄瀛愬嚑浣曞潗鏍?
-- `\epsilon` 鏄殢鏈烘壈鍔?
-- `clip` 鎶婅繃澶х殑浣嶇Щ鎴柇鍒板厑璁歌寖鍥村唴
-- `d_max` 鏄渶澶у厑璁镐綅绉?
+- `R_seed` 是种子几何坐标
+- `\epsilon` 是随机扰动
+- `clip` 把过大的位移截断到允许范围内
+- `d_max` 是最大允许位移
 
-杩欎竴闃舵鐨勬剰涔夋槸锛氭棦淇濈暀澶氭牱鎬э紝鍙堥伩鍏嶆牱鏈竴涓婃潵灏卞亸鍒扮壒鍒笉鍚堢悊鐨勭粨鏋勩€?
+这一阶段的意义是：既保留多样性，又避免样本一上来就偏到特别不合理的结构。
 
-### 5.2 delta 瀛︿範
-椤圭洰涓嶈妯″瀷鐩存帴瀛﹂珮绮惧害缁濆鍊硷紝鑰屾槸鍙淇閲忥細
+### 5.2 delta 学习
+项目不让模型直接学高精度绝对值，而是只学修正量：
 
 \[
 \Delta E = E_{target} - E_{baseline}
@@ -164,82 +164,82 @@ R_{new} = R_{seed} + \operatorname{clip}(\epsilon, -d_{max}, d_{max})
 \Delta F = F_{target} - F_{baseline}
 \]
 
-閫氫織鍦拌锛?
+通俗地说：
 
-- `baseline` 宸茬粡缁欏嚭涓€涓€滃樊涓嶅鐨勭瓟妗堚€?
-- 妯″瀷鍙渶瑕佸鈥滆繕宸灏戜慨姝ｉ噺鈥?
-- 杩欐牱閫氬父姣旂洿鎺ュ `target` 鏇寸渷鏁版嵁锛屼篃鏇村鏄撴敹鏁?
+- `baseline` 已经给出一个“差不多的答案”
+- 模型只需要学“还差多少修正量”
+- 这样通常比直接学 `target` 更省数据，也更容易收敛
 
-### 5.3 涓绘ā鍨嬪拰杈呭姪妯″瀷鍒嗗埆瀛︿粈涔?
-涓绘ā鍨嬪涔狅細
+### 5.3 主模型和辅助模型分别学什么
+主模型学习：
 
 \[
 \text{main model}: (\Delta E, \Delta F)
 \]
 
-涔熷氨鏄悓鏃跺涔犺兘閲忓樊鍜屽姏宸€?
+也就是同时学习能量差和力差。
 
-杈呭姪妯″瀷瀛︿範锛?
+辅助模型学习：
 
 \[
 \text{aux model}: \Delta E
 \]
 
-瀹冨彧瀛︿範鑳介噺宸紝涓昏浣滅敤涓嶆槸鏇夸唬涓绘ā鍨嬶紝鑰屾槸鍜屼富妯″瀷褰㈡垚涓や釜涓嶅悓瑙嗚锛岀敤鏉ヤ及璁′笉纭畾鎬с€?
+它只学习能量差，主要作用不是替代主模型，而是和主模型形成两个不同视角，用来估计不确定性。
 
-### 5.4 涓嶇‘瀹氭€?
-褰撳墠鏈€灏忕増娴佺▼閲囩敤闈炲父鐩磋鐨勫畾涔夛細
+### 5.4 不确定性
+当前最小版流程采用非常直观的定义：
 
 \[
 UQ = \left| pred\_main\_{\Delta E} - pred\_aux\_{\Delta E} \right|
 \]
 
-濡傛灉涓や釜妯″瀷瀵瑰悓涓€鏍锋湰鐨?`delta_E` 棰勬祴宸緱寰堝ぇ锛岄€氬父璇存槑杩欎釜鏍锋湰澶勫湪妯″瀷杩樹笉鐔熸倝鐨勫尯鍩燂紝鍥犳鍊煎緱浼樺厛琛ユ爣銆?
+如果两个模型对同一样本的 `delta_E` 预测差得很大，通常说明这个样本处在模型还不熟悉的区域，因此值得优先补标。
 
-### 5.5 鏀舵暃鍒ゆ嵁
-绗?1 杞悗锛屼細缁熻楂樹笉纭畾鎬ф牱鏈瘮渚嬶細
+### 5.5 收敛判据
+第 1 轮后，会统计高不确定性样本比例：
 
 \[
 uncertain\_ratio = \frac{num\_uncertain\_samples}{num\_pool\_samples}
 \]
 
-濡傛灉杩欎釜姣斾緥宸茬粡寰堜綆锛岃鏄庡嚑浣曟睜涓ぇ澶氭暟鏍锋湰妯″瀷閮藉凡缁忔瘮杈冩湁鎶婃彙銆傚綋鍓嶉粯璁ゆ敹鏁涢槇鍊兼槸 `5%`銆?
+如果这个比例已经很低，说明几何池中大多数样本模型都已经比较有把握。当前默认收敛阈值是 `5%`。
 
-### 5.6 RMSE 鍜?PCC 鐨勬剰涔?
-甯歌鎸囨爣鏈?`RMSE` 鍜?`PCC`銆?
+### 5.6 RMSE 和 PCC 的意义
+常见指标有 `RMSE` 和 `PCC`。
 
-鍧囨柟鏍硅宸細
+均方根误差：
 
 \[
 RMSE = \sqrt{\frac{1}{N}\sum_{i=1}^{N}(y_i - \hat{y}_i)^2}
 \]
 
-瀹冭　閲忛娴嬪€间笌鐪熷疄鍊煎钩鍧囧樊澶氬皯锛岃秺灏忚秺濂姐€?
+它衡量预测值与真实值平均差多少，越小越好。
 
-鐨皵閫婄浉鍏崇郴鏁帮細
+皮尔逊相关系数：
 
 \[
 PCC = \frac{\operatorname{cov}(y, \hat{y})}{\sigma_y \sigma_{\hat{y}}}
 \]
 
-瀹冭　閲忛娴嬭秼鍔夸笌鐪熷疄瓒嬪娍鏄惁涓€鑷达紝瓒婃帴杩?`1` 瓒婂ソ銆?
+它衡量预测趋势与真实趋势是否一致，越接近 `1` 越好。
 
-## 6. 濡備綍鍒ゆ柇璁粌缁撴灉濂藉潖
-鍙互鍏堟姄浣忚繖浜涙渶閲嶈鐨勫師鍒欙細
+## 6. 如何判断训练结果好坏
+可以先抓住这些最重要的原则：
 
-- `energy RMSE` 瓒婂皬瓒婂ソ
-- `gradient RMSE` 瓒婂皬瓒婂ソ
-- `PCC` 瓒婃帴杩?`1` 瓒婂ソ
-- 楠岃瘉闆嗘瘮璁粌闆嗘洿閲嶈
-- 璁粌鎴愬姛涓嶇瓑浜庝富鍔ㄥ涔犳敹鏁?
+- `energy RMSE` 越小越好
+- `gradient RMSE` 越小越好
+- `PCC` 越接近 `1` 越好
+- 验证集比训练集更重要
+- 训练成功不等于主动学习收敛
 
-涔熷氨鏄锛岃嚦灏戣鍒嗘垚涓ゅ眰鐪嬶細
+也就是说，至少要分成两层看：
 
-- 绗竴灞傦細妯″瀷鏈夋病鏈夊鍒颁笢瑗?
-- 绗簩灞傦細妯″瀷瀛﹀埌鐨勪笢瑗垮涓嶅鏀寔杩欎竴杞富鍔ㄥ涔犵粨鏉?
+- 第一层：模型有没有学到东西
+- 第二层：模型学到的东西够不够支持这一轮主动学习结束
 
-## 7. 濡備綍鍒ゆ柇杩欐绗竴杞负浠€涔堢畻鈥滆窇閫氣€?
-褰撳墠杩欐鐪熷疄缁撴灉鎽樿鏄細
+## 7. 如何判断这次第一轮为什么算“跑通”
+当前这次真实结果摘要是：
 
 - `pool = 400`
 - `initial = 250`
@@ -248,17 +248,17 @@ PCC = \frac{\operatorname{cov}(y, \hat{y})}{\sigma_y \sigma_{\hat{y}}}
 - `uncertain ratio = 3.33%`
 - `converged = true`
 
-鎶婅繖浜涙暟瀛楃炕璇戞垚鏇村鏄撶悊瑙ｇ殑璇濓紝灏辨槸锛?
+把这些数字翻译成更容易理解的话，就是：
 
-- 涓€寮€濮嬪叡鍑嗗浜?400 涓€欓€夊嚑浣?
-- 绗?0 杞厛鐢?250 涓牱鏈瀯閫犱簡绗竴鐗堣缁冩暟鎹?
-- 璁粌瀹屾垚鍚庯紝瀵?400 涓睜涓牱鏈兘鍋氫簡 UQ 璇勪及
-- 鏈€缁堝彧鏈?5 涓牱鏈珮浜庨槇鍊硷紝鍊煎緱浼樺厛杩涘叆涓嬩竴杞?
-- 楂樹笉纭畾鎬ф瘮渚嬫槸 `3.33%`锛屼綆浜庨粯璁ょ殑 `5%`
-- 鍥犳褰撳墠绗竴杞凡缁忔弧瓒虫渶灏忛棴鐜窇閫氬苟杈惧埌褰撳墠鏀舵暃鏉′欢
+- 一开始共准备了 400 个候选几何
+- 第 0 轮先用 250 个样本构造了第一版训练数据
+- 训练完成后，对 400 个池中样本都做了 UQ 评估
+- 最终只有 5 个样本高于阈值，值得优先进入下一轮
+- 高不确定性比例是 `3.33%`，低于默认的 `5%`
+- 因此当前第一轮已经满足最小闭环跑通并达到当前收敛条件
 
-## 8. 鐜板湪鎺ㄨ崘鎬庝箞鎵ц
-鍗囩骇鍚庣殑鎺ㄨ崘鍛戒护鏄細
+## 8. 现在推荐怎么执行
+升级后的推荐命令是：
 
 ```bash
 cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
@@ -266,11 +266,11 @@ conda activate ADL_env
 python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --submit-mode-labels pbs       --submit-mode-train pbs       --submit-mode-uq pbs
 ```
 
-璺戝畬浠ュ悗鐩存帴鎵撳紑锛?
+跑完以后直接打开：
 
-- `docs/DATA_ANALYSIS.ipynb`
+- `docs/数据分析.ipynb`
 
-鏍囧噯璺緞涓嬩紭鍏堣鍙栵細
+标准路径下优先读取：
 
 - `models/train_main_predictions.csv`
 - `models/train_main_history.json`
@@ -279,11 +279,9 @@ python scripts/run_first_round_pipeline.py       --config configs/base.yaml     
 - `results/round_001_selection_summary.json`
 - `results/pipeline_run_summary.json`
 
-## 9. 寤鸿鎬庝箞缁х画璇?
-濡傛灉浣犳槸绗竴娆℃帴瑙﹁繖涓」鐩紝鎺ㄨ崘椤哄簭鏄細
+## 9. 建议怎么继续读
+如果你是第一次接触这个项目，推荐顺序是：
 
-1. 鍏堣 `minimal_adl_ethene_butadiene/README.md`
-2. 鍐嶈杩欎唤 `娴佺▼浠嬬粛.md`
-3. 鏈€鍚庢墦寮€ `docs/DATA_ANALYSIS.ipynb`
-
-
+1. 先读 `minimal_adl_ethene_butadiene/README.md`
+2. 再读这份 `流程介绍.md`
+3. 最后打开 `docs/数据分析.ipynb`

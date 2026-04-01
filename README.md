@@ -1,49 +1,53 @@
-﻿# Minimal Active Delta-Learning for Ethene + 1,3-Butadiene
+# Minimal Active Delta-Learning for Ethene + 1,3-Butadiene
 
-杩欐槸涓€涓潰鍚戞暀瀛︺€佸鐜板拰绗竴杞笂鎵嬬殑鏈€灏忕増 ADL 浠撳簱銆傚畠鍥寸粫 `ethene + 1,3-butadiene` 浣撶郴锛屼繚鐣欎竴鏉″敖閲忕煭浣嗚兘鐪熸闂幆鐨勪富鍔?delta-learning 涓荤嚎锛?
+这是一个面向教学、复现和第一轮上手的最小版 ADL 仓库。它围绕 `ethene + 1,3-butadiene` 体系，保留一条尽量短但能真正闭环的主动 delta-learning 主线：
 
 - `baseline`: `GFN2-xTB`
 - `target`: Gaussian `wB97X-D/6-31G*`
-- 涓绘ā鍨? `ANI`
-- 瀛︿範鐩爣:
+- 主模型: `ANI`
+- 学习目标:
   - `delta_E = E_target - E_baseline`
   - `delta_F = F_target - F_baseline`
 
-杩欎唤浠撳簱鐜板湪鐨勭洰鏍囦笉鍙槸鈥滅涓€杞兘璺戦€氣€濓紝鑰屾槸鈥滆窇瀹屽氨鑳界洿鎺ュ垎鏋愬拰姹囨姤鈥濄€?
+这份仓库现在的目标不只是“第一轮能跑通”，而是“跑完就能直接分析和汇报”。
 
-## Recommended Docs
+## 推荐入口
+第一次接触这个项目，建议按下面顺序看：
 
-1. [docs/README.md](./docs/README.md)
-2. [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
-3. [docs/WORKFLOW_GUIDE.md](./docs/WORKFLOW_GUIDE.md)
-4. [docs/RUNBOOK_ANI_FIRST_ROUND.md](./docs/RUNBOOK_ANI_FIRST_ROUND.md)
-5. [docs/DATA_ANALYSIS.ipynb](./docs/DATA_ANALYSIS.ipynb)
-6. [docs/RESULT_SUMMARY_ANI_FIRST_ROUND.md](./docs/RESULT_SUMMARY_ANI_FIRST_ROUND.md)
+1. [minimal_adl_ethene_butadiene/README.md](./minimal_adl_ethene_butadiene/README.md)
+2. [docs/流程介绍.md](./docs/流程介绍.md)
+3. [docs/AIQM_FIRST_ROUND_RUNBOOK.md](./docs/AIQM_FIRST_ROUND_RUNBOOK.md)
+4. [docs/数据分析.ipynb](./docs/数据分析.ipynb)
+5. [docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md](./docs/AIQM_FIRST_ROUND_RESULT_SUMMARY.md)
 
-## 杩欐鍗囩骇鍚庣殑涓荤嚎鑳藉姏
-褰撳墠鎺ㄨ崘涓荤嚎浣嶄簬 [minimal_adl_ethene_butadiene](./minimal_adl_ethene_butadiene/)锛屽凡缁忓崌绾т负鈥滃彲澶嶈窇銆佸彲鍒嗘瀽銆佸彲姹囨姤鈥濈殑绗竴杞祦绋嬶細
+- `流程介绍` 适合第一次读懂整个项目在做什么、每一步为什么存在、核心文件分别负责什么。
+- `数据分析` 适合分析本次或后续轮次跑出来的结果，默认围绕回归任务组织，并会自动识别最新轮次、汇总历史轮次。
+- `AIQM_FIRST_ROUND_RUNBOOK` 适合在服务器上按标准路径实际执行。
 
-- 鏂板涓€閿富鎺ц剼鏈?`scripts/run_first_round_pipeline.py`
-- 淇濈暀鐜版湁鍗曢樁娈佃剼鏈紝渚夸簬灞€閮ㄩ噸璺戝拰鎺掗敊
-- 璁粌鍚庤嚜鍔ㄨˉ榻?notebook 榛樿闇€瑕佺殑鍒嗘瀽浜х墿
-- `docs/DATA_ANALYSIS.ipynb` 榛樿鐩存帴璇诲彇鏍囧噯杈撳嚭璺緞
-- 缂哄け鍙€夋枃浠舵椂 notebook 浼氭竻鏅伴檷绾э紝鑰屼笉鏄暣鏈姤閿?
+## 这次升级后的主线能力
+当前推荐主线位于 [minimal_adl_ethene_butadiene](./minimal_adl_ethene_butadiene/)，已经升级为“可复跑、可分析、可汇报”的第一轮流程：
 
-## 涓€閿窇绗竴杞?
-鍦ㄦ湇鍔″櫒浠撳簱鏍圭洰褰曟洿鏂颁唬鐮佸悗锛岃繘鍏ュ瓙椤圭洰鐩綍鎵ц锛?
+- 新增一键主控脚本 `scripts/run_first_round_pipeline.py`
+- 保留现有单阶段脚本，便于局部重跑和排错
+- 训练后自动补齐 notebook 默认需要的分析产物
+- `docs/数据分析.ipynb` 默认直接读取标准输出路径
+- 缺失可选文件时 notebook 会清晰降级，而不是整本报错
+
+## 一键跑第一轮
+在服务器仓库根目录更新代码后，进入子项目目录执行：
 
 ```bash
 cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
 python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --submit-mode-labels pbs       --submit-mode-train pbs       --submit-mode-uq pbs
 ```
 
-濡傛灉浣犳兂鍏堟彃鍏ヤ竴涓皬瑙勬ā鑱旈€氭鏌ワ紝鍐嶈窇瀹屾暣涓荤嚎锛?
+如果你想先插入一个小规模联通检查，再跑完整主线：
 
 ```bash
 python scripts/run_first_round_pipeline.py       --config configs/base.yaml       --submit-mode-labels pbs       --submit-mode-train pbs       --submit-mode-uq pbs       --with-smoke-tests
 ```
 
-杩欎釜涓绘帶鑴氭湰鍥哄畾缂栨帓浠ヤ笅闃舵锛?
+这个主控脚本固定编排以下阶段：
 
 1. `check_environment`
 2. `sample_initial_geometries`
@@ -57,10 +61,10 @@ python scripts/run_first_round_pipeline.py       --config configs/base.yaml     
 10. `evaluate_uncertainty`
 11. `select_round_001`
 
-瀹冮粯璁ゅ惎鐢?`resume`锛屽鏋滄煇闃舵宸叉湁鎴愬姛浜х墿锛屼細鑷姩璺宠繃锛涗篃鏀寔 `--from-stage`銆乣--to-stage` 鍜?`--force` 鍋氬眬閮ㄩ噸璺戙€?
+它默认启用 `resume`，如果某阶段已有成功产物，会自动跳过；也支持 `--from-stage`、`--to-stage` 和 `--force` 做局部重跑。
 
-## 璺戝畬涔嬪悗浼氬鍑哄摢浜涙爣鍑嗗垎鏋愪骇鐗?
-鍗囩骇鍚庯紝绗竴杞缁冨拰 UQ 瀹屾垚鍚庝細缁熶竴杈撳嚭杩欎簺鏍囧噯鏂囦欢锛?
+## 跑完之后会多出哪些标准分析产物
+升级后，第一轮训练和 UQ 完成后会统一输出这些标准文件：
 
 `models/`
 
@@ -82,52 +86,52 @@ python scripts/run_first_round_pipeline.py       --config configs/base.yaml     
 - `pipeline_run_summary.json`
 - `check_environment_latest.json`
 
-鍏朵腑锛?
+其中：
 
-- `predictions.csv` 璐熻矗閫愭牱鏈宸垎鏋?
-- `history.json` 璐熻矗璁粌鏇茬嚎
-- `training_diagnostics.json` 璐熻矗鍛婅瘔 notebook 搴旇榛樿璇诲摢浜涙枃浠?
-- `pipeline_run_summary.json` 璐熻矗璁板綍涓绘帶娴佺▼鐨勯樁娈电姸鎬?
+- `predictions.csv` 负责逐样本误差分析
+- `history.json` 负责训练曲线
+- `training_diagnostics.json` 负责告诉 notebook 应该默认读哪些文件
+- `pipeline_run_summary.json` 负责记录主控流程的阶段状态
 
-## 濡備綍鍒嗘瀽缁撴灉
-鍗囩骇鍚庣殑 notebook 浣嶄簬 [docs/DATA_ANALYSIS.ipynb](./docs/DATA_ANALYSIS.ipynb)銆?
+## 如何分析结果
+升级后的 notebook 位于 [docs/数据分析.ipynb](./docs/数据分析.ipynb)。
 
-瀹冮粯璁ゅ洿缁曞洓涓棶棰樼粍缁囷細
+它默认围绕四个问题组织：
 
-1. 鏁版嵁闀夸粈涔堟牱
-2. 妯″瀷璁粌寰楅『涓嶉『
-3. 妯″瀷棰勬祴寰楀噯涓嶅噯
-4. 妯″瀷涓轰粈涔堣繖鏍烽娴?
+1. 数据长什么样
+2. 模型训练得顺不顺
+3. 模型预测得准不准
+4. 模型为什么这样预测
 
-鏍囧噯璺緞涓嬶紝浼樺厛鐩存帴璇诲彇锛?
+标准路径下，优先直接读取：
 
 - `models/train_main_history.json`
 - `models/train_main_predictions.csv`
 - `models/training_summary.json`
 - `results/uncertainty_latest.json`
-- `results/active_learning_round_history.json` 鎴?`results/round_*_selection_summary.json`
+- `results/active_learning_round_history.json` 或 `results/round_*_selection_summary.json`
 
-濡傛灉浣犵殑鏈嶅姟鍣ㄤ骇鐗╄矾寰勫拰鏍囧噯璺緞涓€鑷达紝閫氬父涓嶉渶瑕佸厛鎵嬫敼 notebook 椤堕儴 `CONFIG`銆?
+如果你的服务器产物路径和标准路径一致，通常不需要先手改 notebook 顶部 `CONFIG`。
 
-## 鐜璇存槑
-褰撳墠 `base.yaml` 閲岀殑 PBS 榛樿鐜鍚嶄粛鐒舵槸 `ADL_env`锛岀敤浜庤缁冦€佹爣娉ㄥ拰 UQ 涓绘祦绋嬨€? 
-濡傛灉浣犲彧鏄湪鏈嶅姟鍣ㄤ笂鎵撳紑鍒嗘瀽 notebook锛屽彲浠ョ户缁娇鐢ㄥ崟鐙殑 `data_env`銆備篃灏辨槸璇达細
+## 环境说明
+当前 `base.yaml` 里的 PBS 默认环境名仍然是 `ADL_env`，用于训练、标注和 UQ 主流程。  
+如果你只是在服务器上打开分析 notebook，可以继续使用单独的 `data_env`。也就是说：
 
-- 璁粌銆佹爣娉ㄣ€乁Q锛氶粯璁ゆ寜 `conda activate ADL_env`
-- notebook 鍒嗘瀽涓庡彲瑙嗗寲锛氬彲浠ヤ娇鐢?`conda activate data_env`
+- 训练、标注、UQ：默认按 `conda activate ADL_env`
+- notebook 分析与可视化：可以使用 `conda activate data_env`
 
-渚濊禆鏂归潰锛宍minimal_adl_ethene_butadiene/requirements.txt` 宸茶ˉ鍏?`seaborn`锛岃繖鏍?notebook 鍦ㄥ父瑙勭幆澧冧笅鍙互鐩存帴缁樺浘锛涘鏋滄湇鍔″櫒鐜閲屾殏鏃舵病鏈?`seaborn`锛宯otebook 涔熶細鑷姩闄嶇骇鍒?`matplotlib` 椋庢牸缁х画杩愯銆?
+依赖方面，`minimal_adl_ethene_butadiene/requirements.txt` 已补充 `seaborn`，这样 notebook 在常规环境下可以直接绘图；如果服务器环境里暂时没有 `seaborn`，notebook 也会自动降级到 `matplotlib` 风格继续运行。
 
-## 浠撳簱閲岃繕鏈変粈涔?
-鍘嗗彶鍙傝€冪洰褰曚粛鐒朵繚鐣欙紝浣嗗綋鍓嶄笉浣滀负鏂版墜涓诲叆鍙ｏ細
+## 仓库里还有什么
+历史参考目录仍然保留，但当前不作为新手主入口：
 
 - `adl/`
 - `static/`
 
-瀹冧滑鏇撮€傚悎瀵圭収璁烘枃鎬濊矾锛屼笉寤鸿绗竴娆″鐜版椂鐩存帴浠庨噷闈㈢户缁紑鍙戙€?
+它们更适合对照论文思路，不建议第一次复现时直接从里面继续开发。
 
-## 闆嗙兢鍚屾寤鸿
-鎺ㄨ崘鍦ㄦ湇鍔″櫒涓婁繚鐣欏畬鏁翠粨搴?clone锛岃€屼笉鏄彧鎷疯礉瀛愮洰褰曘€傛爣鍑嗘洿鏂版祦绋嬫槸锛?
+## 集群同步建议
+推荐在服务器上保留完整仓库 clone，而不是只拷贝子目录。标准更新流程是：
 
 ```bash
 cd /share/home/Chenlehui/work
@@ -136,7 +140,7 @@ cd test_ADL
 git status
 ```
 
-浠ュ悗鏈湴鎺ㄩ€佹柊鐗堟湰鍚庯紝鏈嶅姟鍣ㄧ粺涓€杩欐牱鏇存柊锛?
+以后本地推送新版本后，服务器统一这样更新：
 
 ```bash
 cd /share/home/Chenlehui/work/test_ADL
@@ -144,24 +148,8 @@ git pull --ff-only
 cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene
 ```
 
-## 璁烘枃鏉ユ簮
+## 论文来源
 
 - Yaohuang Huang, Yi-Fan Hou, Pavlo O. Dral. *Active delta-learning for fast construction of interatomic potentials and stable molecular dynamics simulations*. Mach. Learn.: Sci. Technol. 2025.
-- ChemRxiv 棰勫嵃鏈? [10.26434/chemrxiv-2024-fb02r](https://doi.org/10.26434/chemrxiv-2024-fb02r)
-- MLatom 瀹樻柟浠撳簱: [dralgroup/mlatom](https://github.com/dralgroup/mlatom)
-
-## 涓夋鏋跺苟鍒楀伐绋嬶紙ANI / MACE / NequIP锛?
-褰撳墠浠撳簱淇濈暀浜嗕笁涓苟鍒楃洰褰曪紝浜掍笉瑕嗙洊锛?
-- ANI锛堝師濮嬩富绾匡級锛歚minimal_adl_ethene_butadiene`
-- MACE锛堝彲杩愯锛夛細`minimal_adl_ethene_butadiene_mace`
-- NequIP锛堥鐣欐帴鍙ｇ増锛夛細`minimal_adl_ethene_butadiene_nequip`
-
-璇存槑锛?
-- 涓変釜宸ョ▼鍚勮嚜鎷ユ湁鐙珛鐨?`data/`銆乣models/`銆乣results/`銆乣labels/`銆?- MACE 鐗堟湰澶嶇敤鐜版湁 ADL 绠＄嚎锛屽彲鐩存帴璺戝畬鏁寸涓€杞€?- NequIP 鐗堟湰褰撳墠鐢ㄤ簬宸ョ▼棰勭暀锛氶厤缃彲璇嗗埆锛岃缁冮樁娈典細鏄庣‘鎶?`NotImplementedError`锛屼究浜庡悗缁户缁疄鐜般€?
-杩愯鏂囨。锛?
-- [docs/MACE_RUNBOOK.md](./docs/MACE_RUNBOOK.md)
-- [docs/NEQUIP_RUNBOOK.md](./docs/NEQUIP_RUNBOOK.md)
-
-
-
-
+- ChemRxiv 预印本: [10.26434/chemrxiv-2024-fb02r](https://doi.org/10.26434/chemrxiv-2024-fb02r)
+- MLatom 官方仓库: [dralgroup/mlatom](https://github.com/dralgroup/mlatom)
