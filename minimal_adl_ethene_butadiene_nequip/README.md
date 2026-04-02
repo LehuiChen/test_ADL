@@ -1,30 +1,29 @@
-﻿# Minimal ADL (NequIP Backend Placeholder)
+﻿# Minimal ADL（NequIP 占位）
 
-这个目录是与 ANI / MACE 并列的 NequIP 预留工程。
+本目录是与 ANI / MACE 并列的 NequIP 预留工程。
 
-当前状态：
+- 项目目录：`minimal_adl_ethene_butadiene_nequip`
+- 模型类型：`NequIP`
+- 训练环境：`ADL_NequIP`
+- 当前阶段：训练后端未实现（占位）
 
-- 项目名: `minimal_adl_ethene_butadiene_nequip`
-- 配置可识别: `training.ml_model_type: NequIP`
-- 训练后端状态: 预留中（尚未实现）
-
-也就是说，数据生成、标注、delta 数据集构建等前置阶段可继续复用，训练阶段会给出明确 `NotImplementedError` 提示。
-
-## Quick Start
-
-### 1. 进入目录
+## 1. 环境准备
 
 ```bash
-cd D:/#sustech_work/work/adl25-main/minimal_adl_ethene_butadiene_nequip
+cd /share/home/Chenlehui/work/test_ADL/minimal_adl_ethene_butadiene_nequip
+conda activate ADL_NequIP
+python -m pip install -r requirements.txt
+python -m pip install nequip
 ```
 
-### 2. 环境检查
+## 2. 训练前门禁测试（必须先跑）
 
 ```bash
 python scripts/check_environment.py --config configs/base.yaml --strict
+python scripts/check_environment.py --config configs/base.yaml --strict --test-mlatom-xtb
 ```
 
-### 3. 最小联通测试（只跑前几阶段）
+## 3. 最小联通测试（前置阶段）
 
 ```bash
 python scripts/run_first_round_pipeline.py \
@@ -35,32 +34,15 @@ python scripts/run_first_round_pipeline.py \
   --submit-mode-uq local
 ```
 
-### 4. 预期验证（训练阶段会明确提示未实现）
+## 4. 训练阶段预期行为
 
 ```bash
 python scripts/train_main_model.py --config configs/base.yaml --submit-mode local
 ```
 
-预期行为：抛出 `NotImplementedError`，提示需先实现 NequIP adapter，而不是出现模糊的底层报错。
+预期结果：明确抛出 `NotImplementedError`，提示需要先实现 NequIP adapter。
 
-## 后续实现入口
+## 5. 文档
 
-NequIP 真正落地时，优先补这三个位置：
-
-- `src/minimal_adl/delta_model.py`
-- `src/minimal_adl/training.py`
-- `src/minimal_adl/uncertainty.py`
-
-实现目标：
-
-- 主模型训练（delta_E + delta_F）
-- 辅助模型训练（delta_E）
-- 与现有 UQ、选点与产物格式兼容
-
-## 常见问题
-
-1. 为什么配置识别了 NequIP 仍不能训练？
-- 这是当前阶段的设计目标：先完成工程位点预留与清晰报错，再做后端实现。
-
-2. 是否会影响 ANI / MACE 项目？
-- 不会。三个目录互相隔离，数据与结果不会混用。
+- [../docs/nequip/NEQUIP_RUNBOOK.md](../docs/nequip/NEQUIP_RUNBOOK.md)
+- [../docs/common/环境配置.md](../docs/common/环境配置.md)

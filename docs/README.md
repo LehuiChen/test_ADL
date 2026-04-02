@@ -1,18 +1,28 @@
-﻿# Docs Index
+﻿# 文档总入口（ANI / MACE / NequIP）
 
-本文档用于统一 `docs/` 目录命名与入口。
+本目录已按模型拆分，并保留旧路径兼容页。
 
-## 统一命名入口（推荐）
+## 1. 快速入口
 
-- `WORKFLOW_GUIDE.md`：流程总览
-- `RUNBOOK_ANI_FIRST_ROUND.md`：ANI 第一轮执行手册
-- `RESULT_SUMMARY_ANI_FIRST_ROUND.md`：ANI 第一轮结果摘要
-- `WORKFLOW_DIAGRAM_ANI_FIRST_ROUND.md`：ANI 第一轮流程图
-- `DATA_ANALYSIS.ipynb`：统一分析 notebook
-- `MACE_RUNBOOK.md`：MACE 并列工程运行手册
-- `NEQUIP_RUNBOOK.md`：NequIP 并列工程（预留版）运行手册
-- `GIT_VERSIONING_GUIDE.md`：版本管理与同步说明
+- ANI（可运行主线）：[docs/ani/README.md](./ani/README.md)
+- MACE（并列可运行）：[docs/mace/README.md](./mace/README.md)
+- NequIP（预留占位）：[docs/nequip/README.md](./nequip/README.md)
+- 环境总说明（重点）：[docs/common/环境配置.md](./common/环境配置.md)
 
-## 旧命名文档
+## 2. 目录结构
 
-历史命名文档已收拢至 `docs/legacy/`，避免根目录混乱。
+- `docs/ani/`：ANI 运行手册、流程图、结果摘要、分析 notebook
+- `docs/mace/`：MACE 运行手册与说明
+- `docs/nequip/`：NequIP 运行手册与占位说明
+- `docs/common/`：跨模型公共文档（环境、版本管理等）
+- `docs/legacy/`：历史命名文档归档
+
+## 3. 兼容说明
+
+- 根目录下旧文档文件名（如 `RUNBOOK_ANI_FIRST_ROUND.md`）已改为兼容跳转页。
+- 若你在服务器有旧收藏链接，仍可打开并跳转到新路径。
+
+## 4. 关于 tmp
+
+`tmp/` 是临时工作目录（例如调试脚本、一次性中间文件），不是正式交付产物目录。
+仓库已在 `.gitignore` 中忽略 `/tmp/`，不建议把正式结果放在该目录。

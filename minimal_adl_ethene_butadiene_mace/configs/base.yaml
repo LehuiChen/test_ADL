@@ -70,7 +70,7 @@ cluster:
   ppn: 4
   walltime: 12:00:00
   conda_init: source ~/.bashrc
-  conda_env: ADL_env
+  conda_env: ADL_MACE
   python_command: python
   poll_interval_seconds: 30
   poll_timeout_seconds: 86400
@@ -113,7 +113,7 @@ cluster:
   env_blocks:
     baseline:
       - source ~/.bashrc
-      - conda activate ADL_env
+      - conda activate ADL_MACE
       - export PATH=/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
       - 'echo "Python path: $(which python)"'
       - 'echo "xTB path: $(which xtb)"'
@@ -130,7 +130,7 @@ cluster:
       - set -u
       - set -o pipefail
       - source ~/.bashrc
-      - conda activate ADL_env
+      - conda activate ADL_MACE
       - export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
       - export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
       - export GAUSS_SCRDIR=/tmp/${USER:-${LOGNAME:-unknown_user}}/${PBS_JOBID:-unknown_job}
@@ -144,12 +144,12 @@ cluster:
       - 'echo "GAUSS_SCRDIR: $GAUSS_SCRDIR"'
     training:
       - source ~/.bashrc
-      - conda activate ADL_env
+      - conda activate ADL_MACE
       - 'echo "Python path: $(which python)"'
       - nvidia-smi || true
     uncertainty:
       - source ~/.bashrc
-      - conda activate ADL_env
+      - conda activate ADL_MACE
       - 'echo "Python path: $(which python)"'
       - nvidia-smi || true
   cleanup_blocks:
