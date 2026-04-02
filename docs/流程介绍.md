@@ -1,5 +1,0 @@
-﻿# 文档已迁移
-
-该文档已迁移到：
-
-- [docs/ani/WORKFLOW_GUIDE.md](./ani/WORKFLOW_GUIDE.md)

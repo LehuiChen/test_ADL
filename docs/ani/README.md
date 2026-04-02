@@ -1,8 +1,0 @@
-﻿# ANI 文档入口
-
-- 运行手册：[RUNBOOK_ANI_FIRST_ROUND.md](./RUNBOOK_ANI_FIRST_ROUND.md)
-- 结果摘要：[RESULT_SUMMARY_ANI_FIRST_ROUND.md](./RESULT_SUMMARY_ANI_FIRST_ROUND.md)
-- 流程图：[WORKFLOW_DIAGRAM_ANI_FIRST_ROUND.md](./WORKFLOW_DIAGRAM_ANI_FIRST_ROUND.md)
-- 流程说明：[WORKFLOW_GUIDE.md](./WORKFLOW_GUIDE.md)
-- 分析 notebook：[DATA_ANALYSIS.ipynb](./DATA_ANALYSIS.ipynb)
-- 环境总说明：[../common/环境配置.md](../common/环境配置.md)
