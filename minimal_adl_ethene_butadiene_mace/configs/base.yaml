@@ -145,11 +145,13 @@ cluster:
     training:
       - source ~/.bashrc
       - conda activate ADL_MACE
+      - export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
       - 'echo "Python path: $(which python)"'
       - nvidia-smi || true
     uncertainty:
       - source ~/.bashrc
       - conda activate ADL_MACE
+      - export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
       - 'echo "Python path: $(which python)"'
       - nvidia-smi || true
   cleanup_blocks:

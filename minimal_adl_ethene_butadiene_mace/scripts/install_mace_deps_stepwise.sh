@@ -42,9 +42,9 @@ python -V
 which python
 
 log "Step 2: conda科学栈"
-conda install -y numpy pyyaml matplotlib seaborn joblib scikit-learn
+conda install -y numpy scipy pandas pyyaml matplotlib seaborn joblib scikit-learn h5py statsmodels tqdm
 python - <<'PY'
-import yaml, joblib, sklearn
+import yaml, joblib, sklearn, pandas
 print('base ok')
 PY
 
@@ -55,8 +55,9 @@ import pyh5md
 print('pyh5md ok')
 PY
 
-log "Step 4: pip安装 mlatom"
-python -m pip install "${PIP_FLAGS[@]}" mlatom
+log "Step 4: pip安装 mlatom（固定为 --no-deps）"
+python -m pip install "${PIP_FLAGS[@]}" mlatom --no-deps
+python -m pip install "${PIP_FLAGS[@]}" requests==2.32.3 urllib3==2.2.3 idna==3.10 charset-normalizer==3.4.0
 python - <<'PY'
 import mlatom
 print('mlatom ok')
@@ -74,7 +75,7 @@ else
     cat >&2 <<'MSG'
 [mace-step][ERROR] torch not found and TORCH_INSTALL_CMD is empty.
 Please set TORCH_INSTALL_CMD first, for example:
-  export TORCH_INSTALL_CMD="python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --retries 2 --timeout 20 torch==1.12.0"
+  export TORCH_INSTALL_CMD="python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --retries 2 --timeout 20 torch==2.6.0"
 Then re-run this script.
 MSG
     exit 1
@@ -89,26 +90,22 @@ print('torch cuda =', torch.version.cuda)
 print('torch cuda available =', torch.cuda.is_available())
 PY
 
-log "Step 6: pip安装 mace-torch（或 mace）"
-if python -m pip install "${PIP_FLAGS[@]}" mace-torch; then
-  python - <<'PY'
-import importlib
-ok = importlib.util.find_spec('mace_torch') is not None or importlib.util.find_spec('mace') is not None
-print('mace backend ok =', ok)
-if not ok:
-    raise SystemExit(1)
+log "Step 6: 安装 MACE 后端与配套依赖"
+conda install -y -c conda-forge ase matscipy
+python -m pip install "${PIP_FLAGS[@]}" mace-torch==0.3.15 --no-deps
+python -m pip install "${PIP_FLAGS[@]}" e3nn==0.4.4 opt_einsum prettytable torch-ema configargparse GitPython lmdb orjson python-hostlist torchmetrics opt_einsum_fx --no-deps
+python - <<'PY'
+import os
+os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+import torch
+import e3nn
+import mace
+import ase
+import matscipy
+print('torch version =', torch.__version__)
+print('e3nn version =', e3nn.__version__)
+print('mace backend ok =', True)
 PY
-else
-  log "mace-torch install failed, fallback to mace"
-  python -m pip install "${PIP_FLAGS[@]}" mace
-  python - <<'PY'
-import importlib
-ok = importlib.util.find_spec('mace_torch') is not None or importlib.util.find_spec('mace') is not None
-print('mace backend ok =', ok)
-if not ok:
-    raise SystemExit(1)
-PY
-fi
 
 log "Step 7: training gate checks"
 python scripts/check_environment.py --config configs/base.yaml --strict

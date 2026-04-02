@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import os
 import traceback
 from pathlib import Path
 from typing import Any
@@ -25,15 +26,16 @@ def _ensure_torch_load_compat() -> None:
     except (TypeError, ValueError):
         return
 
-    if "weights_only" in load_signature.parameters:
-        return
     if getattr(torch.load, "_minimal_adl_weights_only_compat", False):
         return
 
     original_torch_load = torch.load
 
     def _compat_torch_load(*args, **kwargs):
-        kwargs.pop("weights_only", None)
+        if "weights_only" in load_signature.parameters:
+            kwargs.setdefault("weights_only", False)
+        else:
+            kwargs.pop("weights_only", None)
         return original_torch_load(*args, **kwargs)
 
     _compat_torch_load._minimal_adl_weights_only_compat = True  # type: ignore[attr-defined]
@@ -43,13 +45,15 @@ def _ensure_torch_load_compat() -> None:
 def import_mlatom():
     """延迟导入 MLatom，避免在当前桌面环境中直接报错。"""
 
+    os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+    _ensure_torch_load_compat()
+
     try:
         import mlatom as ml
     except ModuleNotFoundError as exc:
         raise RuntimeError(
             "当前环境无法导入 `mlatom`。请先激活 `ADL_env`，并使用 `import mlatom as ml` 方式检查安装。"
         ) from exc
-    _ensure_torch_load_compat()
     return ml
 
 
