@@ -12,11 +12,16 @@
 - `docs/mace/`
 - `docs/nequip/`
 
-每个目录固定 3 份文档：
+每个目录固定 4 份文档：
 
 - `环境配置.md`
 - `训练流程.md`
 - `结果说明.md`
+- `数据分析.ipynb`
+
+## 主目录总流程（新手版）
+
+- [训练总流程_新手详细版.md](./训练总流程_新手详细版.md)
 
 ## 三模型 conda 环境对应
 
@@ -26,6 +31,18 @@
 
 ## 快速入口
 
-- ANI 文档：[docs/ani/训练流程.md](./docs/ani/训练流程.md)
-- MACE 文档：[docs/mace/训练流程.md](./docs/mace/训练流程.md)
-- NequIP 文档：[docs/nequip/训练流程.md](./docs/nequip/训练流程.md)
+- ANI：
+  - [docs/ani/环境配置.md](./docs/ani/环境配置.md)
+  - [docs/ani/训练流程.md](./docs/ani/训练流程.md)
+  - [docs/ani/结果说明.md](./docs/ani/结果说明.md)
+  - [docs/ani/数据分析.ipynb](./docs/ani/数据分析.ipynb)
+- MACE：
+  - [docs/mace/环境配置.md](./docs/mace/环境配置.md)
+  - [docs/mace/训练流程.md](./docs/mace/训练流程.md)
+  - [docs/mace/结果说明.md](./docs/mace/结果说明.md)
+  - [docs/mace/数据分析.ipynb](./docs/mace/数据分析.ipynb)
+- NequIP：
+  - [docs/nequip/环境配置.md](./docs/nequip/环境配置.md)
+  - [docs/nequip/训练流程.md](./docs/nequip/训练流程.md)
+  - [docs/nequip/结果说明.md](./docs/nequip/结果说明.md)
+  - [docs/nequip/数据分析.ipynb](./docs/nequip/数据分析.ipynb)
