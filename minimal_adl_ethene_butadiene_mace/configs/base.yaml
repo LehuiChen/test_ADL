@@ -46,7 +46,7 @@ sampling:
 
 training:
   ml_model_type: MACE
-  device: cuda
+  device: cpu
   validation_set_fraction: 0.10
   model_name: delta_bundle
   main_model_stem: delta_main_model
@@ -96,18 +96,15 @@ cluster:
       local_parallelism: 2
       extra_pbs_lines: []
     training:
-      queue: GPU
+      queue: default
       nodes: 1
-      ppn: 8
+      ppn: 16
       walltime: 12:00:00
-      # 如果机房以后要求额外 GPU 资源字段，可改成：
-      # extra_pbs_lines:
-      #   - "#PBS -l gpus=1"
       extra_pbs_lines: []
     uncertainty:
-      queue: GPU
+      queue: default
       nodes: 1
-      ppn: 4
+      ppn: 16
       walltime: 04:00:00
       extra_pbs_lines: []
   env_blocks:
@@ -147,13 +144,13 @@ cluster:
       - conda activate ADL_MACE
       - export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
       - 'echo "Python path: $(which python)"'
-      - nvidia-smi || true
+      - 'echo "Training device: cpu (default config)"'
     uncertainty:
       - source ~/.bashrc
       - conda activate ADL_MACE
       - export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
       - 'echo "Python path: $(which python)"'
-      - nvidia-smi || true
+      - 'echo "Uncertainty device: cpu (default config)"'
   cleanup_blocks:
     target:
       - if [ -n "${GAUSS_SCRDIR:-}" ] && [ "$GAUSS_SCRDIR" != "/" ] && [ "$GAUSS_SCRDIR" != "/tmp" ] && [ "$GAUSS_SCRDIR" != "/tmp/" ] && [ -d "$GAUSS_SCRDIR" ]; then rm -rf "$GAUSS_SCRDIR"; fi

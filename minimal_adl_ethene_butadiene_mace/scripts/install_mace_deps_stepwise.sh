@@ -42,10 +42,11 @@ python -V
 which python
 
 log "Step 2: conda科学栈"
-conda install -y numpy scipy pandas pyyaml matplotlib seaborn joblib scikit-learn h5py statsmodels tqdm
+conda install -y numpy=1.26 scipy pandas pyyaml matplotlib seaborn joblib scikit-learn h5py statsmodels tqdm
 python - <<'PY'
-import yaml, joblib, sklearn, pandas
+import yaml, joblib, sklearn, pandas, numpy
 print('base ok')
+print('numpy version =', numpy.__version__)
 PY
 
 log "Step 3: pip安装 pyh5md"
@@ -63,7 +64,7 @@ import mlatom
 print('mlatom ok')
 PY
 
-log "Step 5: torch安装与校验"
+log "Step 5: torch安装与校验（当前仓库默认按 CPU 训练）"
 if python - <<'PY'
 import importlib
 raise SystemExit(0 if importlib.util.find_spec('torch') else 1)
@@ -92,8 +93,9 @@ PY
 
 log "Step 6: 安装 MACE 后端与配套依赖"
 conda install -y -c conda-forge ase matscipy
-python -m pip install "${PIP_FLAGS[@]}" mace-torch==0.3.15 --no-deps
-python -m pip install "${PIP_FLAGS[@]}" e3nn==0.4.4 opt_einsum prettytable torch-ema configargparse GitPython lmdb orjson python-hostlist torchmetrics opt_einsum_fx --no-deps
+python -m pip uninstall -y mace-torch mace e3nn || true
+python -m pip install "${PIP_FLAGS[@]}" mace-torch==0.3.11 --no-deps
+python -m pip install "${PIP_FLAGS[@]}" e3nn==0.4.4 opt_einsum prettytable torch-ema configargparse GitPython lmdb orjson python-hostlist torchmetrics opt_einsum_fx lightning-utilities --no-deps
 python - <<'PY'
 import os
 os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
@@ -113,6 +115,7 @@ python scripts/check_environment.py --config configs/base.yaml --strict --test-m
 
 cat <<'DONE'
 [mace-step] Done.
-If you are on GPU node, run:
-  python scripts/check_environment.py --config configs/base.yaml --strict --expect-gpu
+This repository now defaults to CPU training for MACE on the current cluster.
+Recommended next step:
+  python scripts/train_main_model.py --config configs/base.yaml --submit-mode pbs
 DONE
