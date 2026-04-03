@@ -1,0 +1,36 @@
+﻿name: ADL_MACE
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - setuptools
+  - wheel
+  - numpy=1.26
+  - scipy
+  - pandas
+  - pyyaml
+  - matplotlib
+  - seaborn
+  - joblib
+  - scikit-learn
+  - h5py
+  - statsmodels
+  - tqdm
+  - ase=3.28.0
+  - matscipy
+
+# CPU-first conda base environment for the current MACE workflow.
+#
+# Reproducible usage on the current cluster:
+#   conda env create -f environment.cpu.yml
+#   conda activate ADL_MACE
+#   bash scripts/install_mace_deps_stepwise.sh
+#
+# Why not put the full pip stack here?
+# - mlatom and mace-torch were stabilized in this project by installing them with --no-deps
+# - conda environment files cannot express those per-package pip flags cleanly
+# - the stepwise installer is therefore the authoritative post-create install path
+#
+# System programs xtb / g16 still come from the cluster environment, not from conda/pip.

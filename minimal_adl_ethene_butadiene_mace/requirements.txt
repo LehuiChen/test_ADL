@@ -1,13 +1,34 @@
-﻿# Base dependencies
-numpy>=1.24
-PyYAML>=6.0
-mlatom>=3.18
-matplotlib>=3.7
-seaborn>=0.12
-joblib>=1.3
-scikit-learn>=1.3
+﻿# ADL_MACE CPU-default pinned pip requirements reference
+#
+# Important:
+# - this file documents the exact pip-side versions used by the CPU-first MACE workflow
+# - do NOT blindly run `pip install -r requirements.txt` in a fresh env
+# - use environment.cpu.yml to create the conda base env first
+# - then use scripts/install_mace_deps_stepwise.sh so that mlatom / mace-torch can be installed with --no-deps where required
+#
+# Why this matters:
+# - mlatom should be installed with --no-deps to avoid pulling an incompatible torch stack
+# - current cluster GPU driver is too old for the tested torch 2.6 CUDA route
+# - numpy should stay on the conda side at 1.26.x to avoid matscipy ABI issues
+# - xtb / g16 are system programs and must come from the cluster environment, not pip
 
-# Model backend notes (install in your training env)
-# torch is required for ANI/MACE/NequIP backends.
-# MACE backend: install one of `mace` or `mace-torch`.
-# Example (manual): pip install mace-torch
+pyh5md==1.2.0
+mlatom==3.22.0
+requests==2.32.3
+urllib3==2.2.3
+idna==3.10
+charset-normalizer==3.4.0
+torch==2.6.0
+mace-torch==0.3.11
+e3nn==0.4.4
+opt_einsum==3.4.0
+prettytable==3.17.0
+torch-ema==0.3
+configargparse==1.7.1
+GitPython==3.1.45
+lmdb==1.7.3
+orjson==3.11.3
+python-hostlist==2.3.0
+torchmetrics==1.8.2
+opt_einsum_fx==0.1.4
+lightning-utilities==0.15.2
