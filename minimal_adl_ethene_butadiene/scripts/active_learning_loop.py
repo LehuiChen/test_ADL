@@ -53,6 +53,106 @@ def manifest_count(path: Path) -> int:
     return len(load_manifest(path))
 
 
+def label_success(label_file: Path) -> bool:
+    payload = safe_read_json(label_file)
+    return bool(payload.get("success", False))
+
+
+def collect_missing_labels(config: dict[str, Any], manifest_path: Path) -> tuple[list[str], list[str]]:
+    xtb_root = Path(config["paths"]["xtb_labels_dir"]).resolve()
+    gaussian_root = Path(config["paths"]["gaussian_labels_dir"]).resolve()
+    baseline_missing: list[str] = []
+    target_missing: list[str] = []
+
+    for entry in load_manifest(manifest_path):
+        sample_id = str(entry["sample_id"])
+        if not label_success(xtb_root / sample_id / "label.json"):
+            baseline_missing.append(sample_id)
+        if not label_success(gaussian_root / sample_id / "label.json"):
+            target_missing.append(sample_id)
+
+    return baseline_missing, target_missing
+
+
+def ensure_manifest_fully_labeled(
+    *,
+    config: dict[str, Any],
+    config_path: Path,
+    project_root: Path,
+    manifest_path: Path,
+    submit_mode_labels: str,
+    force: bool,
+    max_retries: int,
+) -> dict[str, Any]:
+    attempts: list[dict[str, Any]] = []
+
+    for attempt_index in range(max_retries + 1):
+        baseline_missing, target_missing = collect_missing_labels(config, manifest_path)
+        attempt_record = {
+            "attempt": attempt_index,
+            "baseline_missing_count": len(baseline_missing),
+            "target_missing_count": len(target_missing),
+            "baseline_missing_sample_ids": baseline_missing,
+            "target_missing_sample_ids": target_missing,
+        }
+        attempts.append(attempt_record)
+
+        if not baseline_missing and not target_missing:
+            return {
+                "success": True,
+                "attempt_count": attempt_index,
+                "attempts": attempts,
+            }
+
+        if attempt_index >= max_retries:
+            break
+
+        if baseline_missing:
+            try:
+                run_python_script(
+                    [
+                        sys.executable,
+                        str((project_root / "scripts" / "run_xtb_labels.py").resolve()),
+                        "--config",
+                        str(config_path),
+                        "--manifest",
+                        str(manifest_path.resolve()),
+                        "--submit-mode",
+                        submit_mode_labels,
+                        *([] if not force else ["--force"]),
+                    ],
+                    cwd=project_root,
+                )
+            except subprocess.CalledProcessError:
+                pass
+
+        if target_missing:
+            try:
+                run_python_script(
+                    [
+                        sys.executable,
+                        str((project_root / "scripts" / "run_target_labels.py").resolve()),
+                        "--config",
+                        str(config_path),
+                        "--manifest",
+                        str(manifest_path.resolve()),
+                        "--submit-mode",
+                        submit_mode_labels,
+                        *([] if not force else ["--force"]),
+                    ],
+                    cwd=project_root,
+                )
+            except subprocess.CalledProcessError:
+                pass
+
+    baseline_missing, target_missing = collect_missing_labels(config, manifest_path)
+    raise RuntimeError(
+        "Manifest still has incomplete labels after automatic retries. "
+        f"baseline_missing={len(baseline_missing)}, target_missing={len(target_missing)}, "
+        f"baseline_samples={baseline_missing}, target_samples={target_missing}"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run the full TS-seeded active-learning experiment across multiple rounds."
@@ -68,6 +168,12 @@ def main() -> None:
     parser.add_argument("--md-maximum-propagation-time", type=float, default=None)
     parser.add_argument("--md-time-step", type=float, default=None)
     parser.add_argument("--md-save-interval-steps", type=int, default=None)
+    parser.add_argument(
+        "--label-max-retries",
+        type=int,
+        default=4,
+        help="Automatically retry incomplete baseline/target labeling this many times before stopping.",
+    )
     parser.add_argument(
         "--max-new-points",
         type=int,
@@ -172,33 +278,14 @@ def main() -> None:
 
             next_round_index = latest_round_index + 1
 
-            run_python_script(
-                [
-                    sys.executable,
-                    str((project_root / "scripts" / "run_xtb_labels.py").resolve()),
-                    "--config",
-                    str(config_path),
-                    "--manifest",
-                    str(selected_manifest_path.resolve()),
-                    "--submit-mode",
-                    args.submit_mode_labels,
-                    *([] if not args.force else ["--force"]),
-                ],
-                cwd=project_root,
-            )
-            run_python_script(
-                [
-                    sys.executable,
-                    str((project_root / "scripts" / "run_target_labels.py").resolve()),
-                    "--config",
-                    str(config_path),
-                    "--manifest",
-                    str(selected_manifest_path.resolve()),
-                    "--submit-mode",
-                    args.submit_mode_labels,
-                    *([] if not args.force else ["--force"]),
-                ],
-                cwd=project_root,
+            label_retry_summary = ensure_manifest_fully_labeled(
+                config=config,
+                config_path=config_path,
+                project_root=project_root,
+                manifest_path=selected_manifest_path,
+                submit_mode_labels=args.submit_mode_labels,
+                force=args.force,
+                max_retries=max(0, int(args.label_max_retries)),
             )
             run_python_script(
                 [
@@ -290,6 +377,7 @@ def main() -> None:
             next_summary_path = results_dir / f"round_{next_round_index:03d}_selection_summary.json"
             next_summary = safe_read_json(next_summary_path)
             round_record["status"] = "completed"
+            round_record["label_retry_summary"] = label_retry_summary
             round_record["added_to_cumulative_count"] = cumulative_summary.get("added_count")
             round_record["cumulative_total_count"] = cumulative_summary.get("total_count")
             round_record["next_round_index"] = next_round_index
