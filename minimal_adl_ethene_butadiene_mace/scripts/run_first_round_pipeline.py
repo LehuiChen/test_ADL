@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import subprocess
@@ -76,7 +76,7 @@ def main() -> None:
         "select_round_001_frames",
     ]
 
-    parser = argparse.ArgumentParser(description="Run the MACE TS-seed + bidirectional MD first-round pipeline.")
+    parser = argparse.ArgumentParser(description="Run the ANI TS-seed + bidirectional MD first-round pipeline.")
     parser.add_argument("--config", required=True, help="Path to the YAML config file.")
     parser.add_argument("--from-stage", choices=stage_names, default=None)
     parser.add_argument("--to-stage", choices=stage_names, default=None)

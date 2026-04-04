@@ -1,48 +1,65 @@
-﻿# Minimal Active Delta-Learning (ANI / MACE / NequIP)
+﻿# ADL25 Minimal TS-Seeded Active Learning Workflows
 
-本仓库提供三个并列工程：
+This repository contains three aligned minimal active-learning workflows for the ethene + 1,3-butadiene transition state:
 
-- ANI：`minimal_adl_ethene_butadiene`
-- MACE：`minimal_adl_ethene_butadiene_mace`
-- NequIP（预留）：`minimal_adl_ethene_butadiene_nequip`
+- `minimal_adl_ethene_butadiene`: ANI backend, GPU training and GPU MD
+- `minimal_adl_ethene_butadiene_mace`: MACE backend, CPU-only
+- `minimal_adl_ethene_butadiene_KREG`: KREG backend, CPU-only
 
-## docs 结构（仅三目录）
+All three projects now share the same non-model logic:
 
-- `docs/ani/`
-- `docs/mace/`
-- `docs/nequip/`
+1. Parse the authoritative TS seed from `geometries/ture_seed/TS.log`
+2. Generate harmonic-quantum-Boltzmann initial conditions around the TS
+3. Label round 0 with baseline (`GFN2-xTB`) and target (`Gaussian`) methods
+4. Build a delta dataset and train the backend-specific model
+5. Run bidirectional short NVE MD from TS initial conditions
+6. Stop each trajectory at the first uncertain point
+7. Deduplicate and relabel only those selected uncertain points for the next round
 
-每个目录固定 4 份文档：
+## Backend Matrix
 
-- `环境配置.md`
-- `训练流程.md`
-- `结果说明.md`
-- `数据分析.ipynb`
+| Backend | Project Directory | Training Env | Device |
+| --- | --- | --- | --- |
+| ANI | `minimal_adl_ethene_butadiene` | `ADL_env` | GPU |
+| MACE | `minimal_adl_ethene_butadiene_mace` | `ADL_MACE` | CPU only |
+| KREG | `minimal_adl_ethene_butadiene_KREG` | `ADL_KREG` | CPU only |
 
-## 主目录总流程（新手版）
+## Shared Conventions
 
-- [训练总流程_新手详细版.md](./训练总流程_新手详细版.md)
+- `minimal_adl_ethene_butadiene/geometries/ture_seed/TS.log` is the authoritative seed source.
+- Each project keeps its own self-contained copy under `geometries/ture_seed/`.
+- Old static seed folders such as `geometries/seed/` have been retired.
+- NequIP has been removed from this repository.
+- Training environments and notebook / plotting environments should stay separate.
 
-## 三模型 conda 环境对应
+## Where To Start
 
-- ANI：`ADL_env`
-- MACE：`ADL_MACE`
-- NequIP：`ADL_NequIP`
+- Repository-level onboarding: [训练总流程_新手详细版](训练总流程_新手详细版.md)
+- ANI docs: [环境配置](docs/ani/环境配置.md) | [训练流程](docs/ani/训练流程.md) | [结果说明](docs/ani/结果说明.md)
+- MACE docs: [环境配置](docs/mace/环境配置.md) | [训练流程](docs/mace/训练流程.md) | [结果说明](docs/mace/结果说明.md)
+- KREG docs: [环境配置](docs/kreg/环境配置.md) | [训练流程](docs/kreg/训练流程.md) | [结果说明](docs/kreg/结果说明.md)
 
-## 快速入口
+## Important Outputs
 
-- ANI：
-  - [docs/ani/环境配置.md](./docs/ani/环境配置.md)
-  - [docs/ani/训练流程.md](./docs/ani/训练流程.md)
-  - [docs/ani/结果说明.md](./docs/ani/结果说明.md)
-  - [docs/ani/数据分析.ipynb](./docs/ani/数据分析.ipynb)
-- MACE：
-  - [docs/mace/环境配置.md](./docs/mace/环境配置.md)
-  - [docs/mace/训练流程.md](./docs/mace/训练流程.md)
-  - [docs/mace/结果说明.md](./docs/mace/结果说明.md)
-  - [docs/mace/数据分析.ipynb](./docs/mace/数据分析.ipynb)
-- NequIP：
-  - [docs/nequip/环境配置.md](./docs/nequip/环境配置.md)
-  - [docs/nequip/训练流程.md](./docs/nequip/训练流程.md)
-  - [docs/nequip/结果说明.md](./docs/nequip/结果说明.md)
-  - [docs/nequip/数据分析.ipynb](./docs/nequip/数据分析.ipynb)
+Each project writes the same core artifacts, just under its own directory:
+
+- `results/ts_seed_summary.json`
+- `results/round_000_initial_conditions_manifest.json`
+- `data/processed/cumulative_labeled_manifest.json`
+- `data/processed/delta_dataset_metadata.json`
+- `models/training_state.json`
+- `results/round_001_md_sampling_status.json`
+- `results/round_001_selection_summary.json`
+- `results/round_001_selected_manifest.json`
+
+## Server Refresh Pattern
+
+After local updates are pushed to GitHub, the recommended server refresh is to delete the old checkout and reclone a clean copy:
+
+```bash
+cd /share/home/Chenlehui/work
+rm -rf /share/home/Chenlehui/work/test_ADL
+git clone https://github.com/LehuiChen/test_ADL.git /share/home/Chenlehui/work/test_ADL
+```
+
+Then enter the matching project directory and activate the matching conda environment before running `scripts/check_environment.py`.

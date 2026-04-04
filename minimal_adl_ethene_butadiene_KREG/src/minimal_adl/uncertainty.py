@@ -21,10 +21,7 @@ def evaluate_uncertainty_for_manifest(
     model.load_trained_models(config["paths"]["models_dir"], load_main=True, load_aux=True)
     model.uq_threshold = state.get("uq_threshold")
 
-    molecular_database = build_molecular_database_from_geometry_manifest(
-        manifest_path,
-        project_root=config["project_root"],
-    )
+    molecular_database = build_molecular_database_from_geometry_manifest(manifest_path)
     model.predict(molecular_database=molecular_database)
 
     samples = []

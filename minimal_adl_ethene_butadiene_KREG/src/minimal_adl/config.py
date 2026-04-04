@@ -9,17 +9,19 @@ def _import_yaml():
         import yaml
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "PyYAML is required to load this project config. Install PyYAML in your KREG environment first."
+            "当前环境缺少 PyYAML。请先在 `ADL_env` 环境中安装 `PyYAML`，再运行本项目脚本。"
         ) from exc
     return yaml
 
 
 def _resolve_path_values(node: Any, project_root: Path) -> Any:
+    """把配置中的相对路径统一解析为绝对路径。"""
+
     if isinstance(node, dict):
-        resolved: dict[str, Any] = {}
+        resolved = {}
         for key, value in node.items():
             if isinstance(value, str) and (
-                "/" in value or "\\" in value or value.endswith((".json", ".npz", ".xyz", ".yaml", ".txt", ".log"))
+                "/" in value or "\\" in value or value.endswith((".json", ".npz", ".xyz", ".yaml", ".txt", ".log", ".csv"))
             ):
                 candidate = Path(value)
                 resolved[key] = str(candidate if candidate.is_absolute() else (project_root / candidate).resolve())
@@ -32,6 +34,8 @@ def _resolve_path_values(node: Any, project_root: Path) -> Any:
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
+    """读取 YAML 配置文件并返回字典。"""
+
     yaml = _import_yaml()
     config_path = Path(config_path).resolve()
     project_root = config_path.parent.parent.resolve()
@@ -45,7 +49,9 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
 
 
 def get_method_config(config: dict[str, Any], method_key: str) -> dict[str, Any]:
+    """读取 baseline 或 target 的方法配置。"""
+
     methods = config.get("methods", {})
     if method_key not in methods:
-        raise KeyError(f"Method '{method_key}' is missing from the config file.")
+        raise KeyError(f"配置文件中找不到方法 `{method_key}`。")
     return methods[method_key]

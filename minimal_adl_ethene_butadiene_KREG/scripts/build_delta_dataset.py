@@ -25,7 +25,6 @@ def main() -> None:
 
     metadata = build_delta_dataset(
         manifest_path=manifest_path,
-        project_root=config["project_root"],
         xtb_labels_dir=config["paths"]["xtb_labels_dir"],
         gaussian_labels_dir=config["paths"]["gaussian_labels_dir"],
         npz_output_path=config["paths"]["delta_dataset_npz"],

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import csv
@@ -75,7 +75,7 @@ def ensure_history_placeholder(path: Path, model_key: str) -> dict:
     payload = {
         "available": False,
         "model": model_key,
-        "reason": "Structured epoch history was not exposed by the current MLatom/MACE interface.",
+        "reason": "当前运行记录中没有结构化逐 epoch history，通常意味着 ANI/MLatom 接口未暴露该信息。",
     }
     write_json(path, payload)
     return payload
@@ -92,7 +92,7 @@ def ensure_split_placeholder(path: Path) -> dict:
         "subtrain_sample_ids": [],
         "validation_sample_ids": [],
         "rows": [],
-        "reason": "Training split information was not saved by this run.",
+        "reason": "当前运行记录中没有保存训练切分信息。",
     }
     write_json(path, payload)
     return payload
@@ -105,8 +105,8 @@ def ensure_prediction_placeholder(path: Path, fieldnames: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export training diagnostics for the MACE TS + stop-on-uncertainty workflow.")
-    parser.add_argument("--config", required=True, help="Path to the YAML config file.")
+    parser = argparse.ArgumentParser(description="汇总训练阶段诊断产物，供 notebook 和汇报直接读取。")
+    parser.add_argument("--config", required=True, help="YAML 配置文件路径。")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -204,7 +204,7 @@ def main() -> None:
     }
 
     write_json(diagnostics_path, diagnostics)
-    print(f"Exported training diagnostics -> {diagnostics_path}")
+    print(f"训练诊断产物汇总完成：{diagnostics_path}")
 
 
 if __name__ == "__main__":

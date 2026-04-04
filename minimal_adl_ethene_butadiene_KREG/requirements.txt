@@ -9,5 +9,5 @@ scikit-learn>=1.3
 
 # Model backend notes
 # KREG backend is bundled inside MLatom and does not require torch.
-# If you switch this project back to ANI/MACE/NequIP in the future,
-# then you will need to install the corresponding backend packages separately.
+# If you switch this project to another backend in the future,
+# install that backend's extra packages separately.

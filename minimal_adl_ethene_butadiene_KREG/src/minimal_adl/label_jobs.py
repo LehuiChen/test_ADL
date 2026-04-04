@@ -91,7 +91,13 @@ def _prepare_manifest_entries(
             )
             continue
 
-        write_json(job_dir / "job_meta.json", {"sample_id": sample_id, "geometry_file": str(geometry_file)})
+        write_json(
+            job_dir / "job_meta.json",
+            {
+                "sample_id": sample_id,
+                "geometry_file": str(geometry_file),
+            },
+        )
 
         resolved_entry = dict(entry)
         resolved_entry["sample_id"] = sample_id
@@ -225,7 +231,8 @@ def _launch_worker_pbs_jobs(
         worker_manifest_path = worker_dir / "worker_manifest.json"
         worker_status_path = worker_dir / "batch_status.json"
 
-        write_manifest([dict(item["manifest_entry"]) for item in chunk], worker_manifest_path)
+        worker_manifest_entries = [dict(item["manifest_entry"]) for item in chunk]
+        write_manifest(worker_manifest_entries, worker_manifest_path)
 
         local_cmd = [
             python_command,
@@ -298,7 +305,9 @@ def launch_label_jobs(
     submit_mode: str,
     wait: bool,
     force: bool,
-) -> list[dict[str, Any]]:
+) -> list[dict]:
+    """按 manifest 批量提交 baseline 或 target 标注任务。"""
+
     get_method_config(config, method_key)
     cluster_config = config["cluster"]
     project_root = Path(config["project_root"]).resolve()
@@ -327,7 +336,7 @@ def launch_label_jobs(
         return submitted_jobs
 
     if submit_mode != "pbs":
-        raise ValueError("submit_mode must be 'local' or 'pbs'.")
+        raise ValueError("submit_mode 只能是 `local` 或 `pbs`。")
 
     resources = cluster_config.get("resources_by_method", {}).get(method_key, {})
     submission_strategy = str(resources.get("submission_strategy", "worker")).strip().lower()
@@ -354,7 +363,10 @@ def launch_label_jobs(
             pending_entries=pending_entries,
         )
     else:
-        raise ValueError(f"Unsupported label submission strategy: {submission_strategy}")
+        raise ValueError(
+            f"不支持的 label 提交策略 `{submission_strategy}`。"
+            " 当前仅支持 `worker` 或 `per-sample`。"
+        )
 
     submitted_jobs.extend(new_jobs)
 

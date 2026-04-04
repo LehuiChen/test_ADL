@@ -10,9 +10,11 @@ from .io_utils import read_json, write_json
 
 
 def load_label_result(label_json_path: str | Path) -> dict[str, Any]:
+    """读取单个标注结果文件。"""
+
     payload = read_json(label_json_path)
     if not payload.get("success", False):
-        raise RuntimeError(f"Label job failed: {label_json_path}")
+        raise RuntimeError(f"标注任务失败：{label_json_path}")
     return payload
 
 
@@ -23,12 +25,12 @@ def build_delta_dataset(
     gaussian_labels_dir: str | Path,
     npz_output_path: str | Path,
     metadata_output_path: str | Path,
-    project_root: str | Path,
 ) -> dict[str, Any]:
+    """读取几何与标注结果，构建统一的 delta 数据集。"""
+
     manifest_entries = load_manifest(manifest_path)
     xtb_labels_dir = Path(xtb_labels_dir)
     gaussian_labels_dir = Path(gaussian_labels_dir)
-    project_root = Path(project_root).resolve()
 
     sample_ids: list[str] = []
     atomic_numbers: list[np.ndarray] = []
@@ -41,11 +43,13 @@ def build_delta_dataset(
     delta_forces: list[np.ndarray] = []
     per_sample_metadata: list[dict[str, Any]] = []
 
+    manifest_root = Path(manifest_path).resolve().parent.parent.parent
+
     for entry in manifest_entries:
-        sample_id = str(entry["sample_id"])
+        sample_id = entry["sample_id"]
         geometry_file = Path(entry["geometry_file"])
         if not geometry_file.is_absolute():
-            geometry_file = (project_root / geometry_file).resolve()
+            geometry_file = manifest_root / geometry_file
 
         xtb_result = load_label_result(xtb_labels_dir / sample_id / "label.json")
         target_result = load_label_result(gaussian_labels_dir / sample_id / "label.json")
@@ -75,8 +79,14 @@ def build_delta_dataset(
                 "charge": geometry.charge,
                 "multiplicity": geometry.multiplicity,
                 "source": entry.get("source", ""),
-                "source_kind": entry.get("source_kind", geometry.source_kind),
+                "source_kind": entry.get("source_kind", ""),
                 "manifest_metadata": entry.get("metadata", {}),
+                "round_index": entry.get("metadata", {}).get("round_index"),
+                "parent_trajectory_id": entry.get("metadata", {}).get("parent_trajectory_id"),
+                "frame_index": entry.get("metadata", {}).get("frame_index"),
+                "time_fs": entry.get("metadata", {}).get("time_fs"),
+                "initcond_id": entry.get("metadata", {}).get("initcond_id"),
+                "uq_at_selection": entry.get("metadata", {}).get("uq_at_selection"),
                 "baseline_label_file": str((xtb_labels_dir / sample_id / "label.json").resolve()),
                 "target_label_file": str((gaussian_labels_dir / sample_id / "label.json").resolve()),
             }
@@ -98,7 +108,6 @@ def build_delta_dataset(
     metadata = {
         "num_samples": len(sample_ids),
         "samples": per_sample_metadata,
-        "source_manifest_file": str(Path(manifest_path).resolve()),
         "notes": {
             "delta_E_definition": "E_target - E_baseline",
             "delta_F_definition": "F_target - F_baseline",
@@ -109,6 +118,8 @@ def build_delta_dataset(
 
 
 def load_delta_dataset(npz_path: str | Path, metadata_path: str | Path) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    """读取之前保存的 delta 数据集。"""
+
     dataset = np.load(npz_path, allow_pickle=True)
     metadata = read_json(metadata_path)
     return {key: dataset[key] for key in dataset.files}, metadata

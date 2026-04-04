@@ -64,6 +64,8 @@ class GaussianTSData:
     coordinates: np.ndarray
     atomic_numbers: list[int]
     frequencies: list[float]
+    reduced_masses: list[float]
+    force_constants: list[float]
     normal_modes: list[np.ndarray]
     num_imaginary_frequencies: int
 
@@ -109,6 +111,8 @@ class GaussianTSData:
             "multiplicity": self.multiplicity,
             "atoms": atoms,
             "frequencies": [float(value) for value in self.frequencies],
+            "force_constants": [float(value) for value in self.force_constants],
+            "reduced_masses": [float(value) for value in self.reduced_masses],
             "scf_energy": self.scf_energy,
             "source_log": str(self.log_path.resolve()),
             "route_section": self.route_section,
@@ -129,6 +133,8 @@ class GaussianTSData:
             "num_imaginary_frequencies": self.num_imaginary_frequencies,
             "imaginary_frequencies": imaginary_frequencies,
             "first_imaginary_frequency": imaginary_frequencies[0] if imaginary_frequencies else None,
+            "num_reduced_masses": len(self.reduced_masses),
+            "num_force_constants": len(self.force_constants),
         }
 
 
@@ -204,8 +210,10 @@ def _find_last_scf_energy(text: str) -> float | None:
     return float(matches[-1])
 
 
-def _parse_frequency_blocks(lines: list[str], natoms: int) -> tuple[list[float], list[np.ndarray]]:
+def _parse_frequency_blocks(lines: list[str], natoms: int) -> tuple[list[float], list[float], list[float], list[np.ndarray]]:
     frequencies: list[float] = []
+    reduced_masses: list[float] = []
+    force_constants: list[float] = []
     normal_modes: list[np.ndarray] = []
 
     for index, line in enumerate(lines):
@@ -217,6 +225,24 @@ def _parse_frequency_blocks(lines: list[str], natoms: int) -> tuple[list[float],
         num_modes_in_block = len(block_frequencies)
         if num_modes_in_block == 0:
             continue
+
+        reduced_mass_index = index + 1
+        while reduced_mass_index < len(lines) and "Red. masses --" not in lines[reduced_mass_index]:
+            reduced_mass_index += 1
+        if reduced_mass_index >= len(lines):
+            raise ValueError("Found a Gaussian frequency block without reduced masses.")
+        block_reduced_masses = [float(value) for value in lines[reduced_mass_index].split("--", 1)[1].split()]
+        if len(block_reduced_masses) != num_modes_in_block:
+            raise ValueError("Gaussian reduced masses do not match the number of frequencies in the block.")
+
+        force_constant_index = reduced_mass_index + 1
+        while force_constant_index < len(lines) and "Frc consts  --" not in lines[force_constant_index]:
+            force_constant_index += 1
+        if force_constant_index >= len(lines):
+            raise ValueError("Found a Gaussian frequency block without force constants.")
+        block_force_constants = [float(value) for value in lines[force_constant_index].split("--", 1)[1].split()]
+        if len(block_force_constants) != num_modes_in_block:
+            raise ValueError("Gaussian force constants do not match the number of frequencies in the block.")
 
         header_index = index + 1
         while header_index < len(lines) and "Atom  AN" not in lines[header_index]:
@@ -259,13 +285,15 @@ def _parse_frequency_blocks(lines: list[str], natoms: int) -> tuple[list[float],
             raise ValueError("Failed to read all atoms from a Gaussian normal-coordinate table.")
 
         frequencies.extend(block_frequencies)
+        reduced_masses.extend(block_reduced_masses)
+        force_constants.extend(block_force_constants)
         normal_modes.extend(block_modes)
 
-    if len(frequencies) != len(normal_modes):
-        raise ValueError("Parsed Gaussian frequencies and normal modes have inconsistent lengths.")
+    if not (len(frequencies) == len(reduced_masses) == len(force_constants) == len(normal_modes)):
+        raise ValueError("Parsed Gaussian vibrational properties have inconsistent lengths.")
     if not frequencies:
         raise ValueError("No Gaussian frequencies were parsed from the log file.")
-    return frequencies, normal_modes
+    return frequencies, reduced_masses, force_constants, normal_modes
 
 
 def parse_gaussian_ts_log(log_path: str | Path) -> GaussianTSData:
@@ -277,7 +305,10 @@ def parse_gaussian_ts_log(log_path: str | Path) -> GaussianTSData:
     lines = text.splitlines()
     charge, multiplicity = _find_charge_and_multiplicity(text)
     coordinates, atomic_numbers = _find_last_standard_orientation(lines)
-    frequencies, normal_modes = _parse_frequency_blocks(lines, natoms=len(atomic_numbers))
+    frequencies, reduced_masses, force_constants, normal_modes = _parse_frequency_blocks(
+        lines,
+        natoms=len(atomic_numbers),
+    )
     num_imaginary_frequencies = sum(1 for value in frequencies if value < 0.0)
 
     if num_imaginary_frequencies != 1:
@@ -294,6 +325,8 @@ def parse_gaussian_ts_log(log_path: str | Path) -> GaussianTSData:
         coordinates=coordinates,
         atomic_numbers=atomic_numbers,
         frequencies=frequencies,
+        reduced_masses=reduced_masses,
+        force_constants=force_constants,
         normal_modes=normal_modes,
         num_imaginary_frequencies=num_imaginary_frequencies,
     )

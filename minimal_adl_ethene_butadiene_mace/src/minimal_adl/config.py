@@ -21,7 +21,7 @@ def _resolve_path_values(node: Any, project_root: Path) -> Any:
         resolved = {}
         for key, value in node.items():
             if isinstance(value, str) and (
-                "/" in value or "\\" in value or value.endswith((".json", ".npz", ".xyz", ".yaml", ".txt"))
+                "/" in value or "\\" in value or value.endswith((".json", ".npz", ".xyz", ".yaml", ".txt", ".log", ".csv"))
             ):
                 candidate = Path(value)
                 resolved[key] = str(candidate if candidate.is_absolute() else (project_root / candidate).resolve())

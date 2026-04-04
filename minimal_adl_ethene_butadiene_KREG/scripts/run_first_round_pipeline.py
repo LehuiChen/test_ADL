@@ -76,7 +76,7 @@ def main() -> None:
         "select_round_001_frames",
     ]
 
-    parser = argparse.ArgumentParser(description="Run the KREG TS-seed + bidirectional MD first-round pipeline.")
+    parser = argparse.ArgumentParser(description="Run the ANI TS-seed + bidirectional MD first-round pipeline.")
     parser.add_argument("--config", required=True, help="Path to the YAML config file.")
     parser.add_argument("--from-stage", choices=stage_names, default=None)
     parser.add_argument("--to-stage", choices=stage_names, default=None)
@@ -479,7 +479,7 @@ def main() -> None:
     pipeline_summary["success"] = True
     pipeline_summary["finished_at"] = timestamp_string()
     persist_summary()
-    print(f"KREG first-round TS + stop-on-uncertainty bidirectional MD pipeline completed: {pipeline_run_summary_path}")
+    print(f"First-round TS + stop-on-uncertainty bidirectional MD pipeline completed: {pipeline_run_summary_path}")
 
 
 if __name__ == "__main__":

@@ -145,6 +145,7 @@ def main() -> None:
         "generated_at": timestamp_string(),
         "config_file": str(Path(config["config_path"]).resolve()),
         "models_dir": str(Path(paths_cfg["models_dir"]).resolve()),
+        "results_dir": str(Path(paths_cfg["results_dir"]).resolve()),
         "training_summary_file": str(training_summary_path.resolve()),
         "training_state_file": str(training_state_path.resolve()),
         "train_main_status_file": str(train_main_status_path.resolve()),
@@ -190,6 +191,15 @@ def main() -> None:
             "preferred_history_file": str(main_history_path.resolve()),
             "aux_prediction_file": str(aux_predictions_path.resolve()),
             "aux_history_file": str(aux_history_path.resolve()),
+            "cumulative_manifest_file": str(Path(paths_cfg.get("cumulative_labeled_manifest", "")).resolve())
+            if paths_cfg.get("cumulative_labeled_manifest")
+            else None,
+            "ts_seed_summary_file": str(Path(paths_cfg.get("ts_seed_summary_file", "")).resolve())
+            if paths_cfg.get("ts_seed_summary_file")
+            else None,
+            "active_learning_history_file": str(Path(paths_cfg.get("active_learning_round_history_file", "")).resolve())
+            if paths_cfg.get("active_learning_round_history_file")
+            else None,
         },
     }
 

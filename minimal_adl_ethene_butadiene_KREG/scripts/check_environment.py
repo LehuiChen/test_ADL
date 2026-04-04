@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import importlib
@@ -17,6 +17,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from minimal_adl.config import load_config
+from minimal_adl.gaussian_ts_seed import parse_gaussian_ts_log
+from minimal_adl.geometry import save_xyz
 from minimal_adl.io_utils import write_json
 from minimal_adl.mlatom_bridge import create_mlatom_method
 
@@ -51,7 +53,7 @@ def check_any_python_module(candidates: list[str], *, check_name: str) -> dict[s
             payload["resolved_module"] = module_name
             break
     if not payload["ok"]:
-        payload["error_message"] = " / ".join(candidates) + " 均不可导入。"
+        payload["error_message"] = "Could not import any of: " + ", ".join(candidates)
     return payload
 
 
@@ -60,7 +62,7 @@ def check_command(command_name: str, version_args: list[str] | None = None) -> d
     command_path = shutil.which(command_name)
     payload["path"] = command_path
     if command_path is None:
-        payload["error_message"] = f"在当前 PATH 中找不到命令 `{command_name}`。"
+        payload["error_message"] = f"Command `{command_name}` was not found in PATH."
         return payload
 
     payload["ok"] = True
@@ -95,17 +97,16 @@ def check_torch_status(expect_gpu: bool, *, model_type: str) -> dict[str, Any]:
         payload["expected_gpu"] = expect_gpu
         payload["model_type"] = model_type
 
-        model_type_lower = model_type.casefold()
-        if model_type_lower == "ani":
+        if model_type.casefold() == "ani":
             if not str(torch.__version__).startswith("1.12"):
-                payload["version_warning"] = "当前 torch 版本不是推荐的 1.12.x，ANI 老驱动兼容方案可能失效。"
+                payload["version_warning"] = "ANI is usually validated with torch 1.12.x."
             if torch.version.cuda not in (None, "11.3"):
-                payload["cuda_warning"] = "当前 torch 绑定的 CUDA 版本不是推荐的 11.3。"
+                payload["cuda_warning"] = "ANI is usually validated with CUDA 11.3 builds."
 
         if payload["cuda_available"]:
             payload["device_name"] = torch.cuda.get_device_name(0)
         elif expect_gpu:
-            payload["warning"] = "当前要求检查 GPU，但 torch.cuda.is_available() 为 False。请确认现在位于 GPU 节点。"
+            payload["warning"] = "GPU was requested for checking, but torch.cuda.is_available() is False."
     except Exception as exc:  # noqa: BLE001
         payload["ok"] = False
         payload["error_type"] = type(exc).__name__
@@ -114,19 +115,40 @@ def check_torch_status(expect_gpu: bool, *, model_type: str) -> dict[str, Any]:
     return payload
 
 
+def detect_model_type(config: dict[str, Any]) -> str:
+    return str(config.get("training", {}).get("ml_model_type", "ANI")).strip() or "ANI"
+
+
+def model_dependency_requirements(model_type: str) -> tuple[str, list[str], bool]:
+    model_type_lower = model_type.casefold()
+    if model_type_lower == "ani":
+        return "torchani", ["torchani"], True
+    if model_type_lower == "mace":
+        return "mace_backend", ["mace", "mace_torch"], True
+    if model_type_lower == "kreg":
+        return "kreg_backend", [], False
+    return "model_backend_unknown", [], False
+
+
+def resolve_ts_seed_xyz(config: dict[str, Any]) -> tuple[Path, str]:
+    seed_xyz_path = Path(config["paths"]["ts_seed_xyz"]).resolve()
+    if seed_xyz_path.exists():
+        return seed_xyz_path, "prepared_ts_seed_xyz"
+
+    ts_data = parse_gaussian_ts_log(config["paths"]["ts_frequency_source"])
+    geometry_path = Path(config["paths"]["results_dir"]).resolve() / "check_environment_ts_seed.xyz"
+    geometry_path.parent.mkdir(parents=True, exist_ok=True)
+    save_xyz(ts_data.geometry_record, geometry_path, comment="temporary ts seed for environment check")
+    return geometry_path, "temporary_xyz_from_ts_log"
+
+
 def run_optional_mlatom_xtb_test(config_path: str | Path) -> dict[str, Any]:
     payload: dict[str, Any] = {"test": "mlatom_xtb_single_point", "ok": False}
     try:
         config = load_config(config_path)
         import mlatom as ml
 
-        geometry_path = Path(config["paths"]["ts_seed_xyz"]).resolve()
-        if not geometry_path.exists():
-            payload["error_message"] = (
-                f"TS seed XYZ 不存在：{geometry_path}。"
-                " 请先运行 scripts/prepare_ts_seed.py 再执行 --test-mlatom-xtb。"
-            )
-            return payload
+        geometry_path, geometry_source = resolve_ts_seed_xyz(config)
         molecule = ml.data.molecule()
         molecule.load(str(geometry_path), format="xyz")
         method = create_mlatom_method(
@@ -144,6 +166,7 @@ def run_optional_mlatom_xtb_test(config_path: str | Path) -> dict[str, Any]:
         )
         payload["ok"] = True
         payload["geometry_file"] = str(geometry_path)
+        payload["geometry_source"] = geometry_source
         payload["energy"] = float(molecule.energy)
     except Exception as exc:  # noqa: BLE001
         payload["error_type"] = type(exc).__name__
@@ -152,35 +175,18 @@ def run_optional_mlatom_xtb_test(config_path: str | Path) -> dict[str, Any]:
     return payload
 
 
-def detect_model_type(config: dict[str, Any]) -> str:
-    return str(config.get("training", {}).get("ml_model_type", "ANI")).strip() or "ANI"
-
-
-def model_dependency_requirements(model_type: str) -> tuple[str, list[str], str]:
-    model_type_lower = model_type.casefold()
-    if model_type_lower == "ani":
-        return "torchani", ["torchani"], "ANI"
-    if model_type_lower == "kreg":
-        return "kreg_backend", [], "KREG"
-    if model_type_lower == "mace":
-        return "mace_backend", ["mace", "mace_torch"], "MACE"
-    if model_type_lower == "nequip":
-        return "nequip", ["nequip"], "NequIP"
-    return "model_backend_unknown", [], model_type
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="检查 ADL 环境是否满足当前模型后端的运行要求。")
-    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "base.yaml"), help="配置文件路径。")
-    parser.add_argument("--expect-gpu", action="store_true", help="如果你当前在 GPU 节点上，可以打开这个选项检查 CUDA。")
-    parser.add_argument("--test-mlatom-xtb", action="store_true", help="额外执行一次最小 mlatom + xtb 单点测试。")
-    parser.add_argument("--json-output", default=None, help="将检查结果写入 JSON 文件。")
-    parser.add_argument("--strict", action="store_true", help="若关键依赖缺失，则以非零状态码退出。")
+    parser = argparse.ArgumentParser(description="Check whether the current environment matches the active ADL backend.")
+    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "base.yaml"), help="Path to the YAML config file.")
+    parser.add_argument("--expect-gpu", action="store_true", help="Also verify that CUDA is available in the current session.")
+    parser.add_argument("--test-mlatom-xtb", action="store_true", help="Run a minimal mlatom + xTB single-point test.")
+    parser.add_argument("--json-output", default=None, help="Optional JSON file to save the report.")
+    parser.add_argument("--strict", action="store_true", help="Exit with a non-zero code when required checks fail.")
     args = parser.parse_args()
 
     config = load_config(args.config)
     model_type = detect_model_type(config)
-    model_check_key, model_candidates, model_display_name = model_dependency_requirements(model_type)
+    model_check_key, model_candidates, require_torch = model_dependency_requirements(model_type)
     target_uses_gaussian = str(config.get("methods", {}).get("target", {}).get("program", "")).lower() == "gaussian"
 
     checks: dict[str, Any] = {
@@ -192,7 +198,7 @@ def main() -> None:
         "pyh5md": check_python_module("pyh5md"),
         "joblib": check_python_module("joblib"),
         "sklearn": check_python_module("sklearn"),
-        "torch": check_torch_status(expect_gpu=args.expect_gpu, model_type=model_display_name),
+        "torch": check_torch_status(expect_gpu=args.expect_gpu, model_type=model_type),
         "xtb": check_command("xtb", ["--version"]),
         "g16": check_command("g16", None),
         "Gau_Mlatom.py": check_command("Gau_Mlatom.py", None),
@@ -203,20 +209,20 @@ def main() -> None:
             checks[model_check_key] = check_python_module(model_candidates[0])
         else:
             checks[model_check_key] = check_any_python_module(model_candidates, check_name=model_check_key)
+    elif model_type.casefold() == "kreg":
+        checks[model_check_key] = {
+            "ok": True,
+            "note": "KREG backend support is provided by MLatom itself and does not require an extra Python package.",
+        }
     else:
-        if model_type.casefold() == "kreg":
-            checks[model_check_key] = {
-                "ok": True,
-                "note": "KREG 后端由 MLatom 内置提供，不需要额外的独立 Python 包。",
-            }
-        else:
-            checks[model_check_key] = {
-                "ok": False,
-                "error_message": f"未知 ml_model_type: {model_type}，当前仅支持 ANI/KREG/MACE/NequIP。",
-            }
+        checks[model_check_key] = {
+            "ok": False,
+            "error_message": f"Unsupported ml_model_type: {model_type}. Expected ANI, MACE, or KREG.",
+        }
 
     report: dict[str, Any] = {
         "config_file": str(Path(config["config_path"]).resolve()),
+        "python": sys.executable,
         "ml_model_type": model_type,
         "checks": checks,
     }
@@ -231,21 +237,17 @@ def main() -> None:
 
     if args.strict:
         required_keys = ["yaml", "mlatom", "pyh5md", "joblib", "sklearn", "xtb", model_check_key]
-        if model_type.casefold() != "kreg":
+        if require_torch:
             required_keys.append("torch")
         if target_uses_gaussian:
             required_keys.append("g16")
 
-        failed_checks = [
-            key
-            for key in required_keys
-            if not report["checks"].get(key, {}).get("ok", False)
-        ]
+        failed_checks = [key for key in required_keys if not report["checks"].get(key, {}).get("ok", False)]
         if args.test_mlatom_xtb and not report["checks"].get("mlatom_xtb_single_point", {}).get("ok", False):
             failed_checks.append("mlatom_xtb_single_point")
 
         if failed_checks:
-            raise SystemExit("关键环境检查未通过：" + ", ".join(failed_checks))
+            raise SystemExit("Required environment checks failed: " + ", ".join(failed_checks))
 
 
 if __name__ == "__main__":

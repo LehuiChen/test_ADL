@@ -95,12 +95,6 @@ class DeltaMLModel(ml.al_utils.ml_model):
         if molecular_database is None:
             raise ValueError("璁粌鍓嶅繀椤绘彁渚?molecular_database銆?)
 
-        if self.ml_model_type.casefold() == "nequip":
-            raise NotImplementedError(
-                "NequIP backend is reserved but not implemented yet in this project. "
-                "Please first complete a NequIP adapter in DeltaMLModel.initialize_model/model_trainer/predict "
-                "or switch ml_model_type to ANI or MACE."
-            )
         al_info = dict(al_info or {})
         workdir = Path(al_info.get("working_directory", ".")).resolve()
         workdir.mkdir(parents=True, exist_ok=True)

@@ -10,14 +10,32 @@ from .io_utils import ensure_dir, read_json, write_json
 
 SYMBOL_TO_ATOMIC_NUMBER = {
     "H": 1,
+    "He": 2,
+    "Li": 3,
+    "Be": 4,
+    "B": 5,
     "C": 6,
     "N": 7,
     "O": 8,
+    "F": 9,
+    "Ne": 10,
+    "Na": 11,
+    "Mg": 12,
+    "Al": 13,
+    "Si": 14,
+    "P": 15,
+    "S": 16,
+    "Cl": 17,
+    "Ar": 18,
 }
+
+ATOMIC_NUMBER_TO_SYMBOL = {value: key for key, value in SYMBOL_TO_ATOMIC_NUMBER.items()}
 
 
 @dataclass
 class GeometryRecord:
+    """描述一个几何结构样本。"""
+
     sample_id: str
     symbols: list[str]
     coordinates: np.ndarray
@@ -32,6 +50,8 @@ class GeometryRecord:
         return np.asarray([SYMBOL_TO_ATOMIC_NUMBER[symbol] for symbol in self.symbols], dtype=int)
 
     def to_manifest_entry(self, geometry_path: Path, project_root: Path) -> dict[str, Any]:
+        """把样本转成 manifest 条目。"""
+
         return {
             "sample_id": self.sample_id,
             "geometry_file": str(geometry_path.resolve().relative_to(project_root.resolve())),
@@ -47,7 +67,7 @@ class GeometryRecord:
 def _load_xyz(path: Path) -> GeometryRecord:
     lines = [line.rstrip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if len(lines) < 3:
-        raise ValueError(f"XYZ file is too short: {path}")
+        raise ValueError(f"XYZ 文件内容过短：{path}")
 
     num_atoms = int(lines[0])
     comment = lines[1]
@@ -58,7 +78,7 @@ def _load_xyz(path: Path) -> GeometryRecord:
     for line in body:
         fields = line.split()
         if len(fields) < 4:
-            raise ValueError(f"Invalid XYZ line: {line}")
+            raise ValueError(f"XYZ 行格式不正确：{line}")
         symbols.append(fields[0])
         coords.append([float(fields[1]), float(fields[2]), float(fields[3])])
 
@@ -73,9 +93,23 @@ def _load_xyz(path: Path) -> GeometryRecord:
 def _load_json(path: Path) -> GeometryRecord:
     payload = read_json(path)
     if "atoms" not in payload:
-        raise ValueError(f"MLatom JSON geometry is missing the 'atoms' field: {path}")
+        raise ValueError(f"JSON 几何文件不包含 atoms 字段：{path}")
 
-    symbols = [atom["element_symbol"] for atom in payload["atoms"]]
+    symbols: list[str] = []
+    for atom in payload["atoms"]:
+        if atom.get("element_symbol"):
+            symbols.append(str(atom["element_symbol"]))
+            continue
+
+        atomic_number = atom.get("atomic_number", atom.get("nuclear_charge"))
+        if atomic_number is None:
+            raise KeyError("JSON atom is missing both element_symbol and atomic_number/nuclear_charge.")
+
+        atomic_number = int(atomic_number)
+        symbol = ATOMIC_NUMBER_TO_SYMBOL.get(atomic_number)
+        if symbol is None:
+            raise KeyError(f"Unsupported atomic number in geometry JSON: {atomic_number}")
+        symbols.append(symbol)
     coords = [atom["xyz_coordinates"] for atom in payload["atoms"]]
 
     return GeometryRecord(
@@ -91,16 +125,20 @@ def _load_json(path: Path) -> GeometryRecord:
 
 
 def load_geometry(path: str | Path) -> GeometryRecord:
+    """读取单个几何文件，支持 xyz 和原仓库中的单分子 json。"""
+
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix == ".xyz":
         return _load_xyz(path)
     if suffix == ".json":
         return _load_json(path)
-    raise ValueError(f"Unsupported geometry format: {path}")
+    raise ValueError(f"暂不支持的几何格式：{path}")
 
 
 def save_xyz(record: GeometryRecord, path: str | Path, comment: str | None = None) -> None:
+    """保存为标准 xyz 文件。"""
+
     path = Path(path)
     ensure_dir(path.parent)
     lines = [str(len(record.symbols)), comment or record.source or record.sample_id]
@@ -117,6 +155,11 @@ def generate_perturbed_geometries(
     rng_seed: int,
     prefix: str = "geom",
 ) -> list[GeometryRecord]:
+    """围绕种子结构生成一批随机微扰几何。
+
+    这是为了教学和最小跑通而使用的工程简化版采样。
+    """
+
     rng = np.random.default_rng(rng_seed)
     samples: list[GeometryRecord] = []
     for index in range(num_samples):
@@ -141,9 +184,13 @@ def generate_perturbed_geometries(
 
 
 def write_manifest(entries: list[dict[str, Any]], path: str | Path) -> None:
+    """把几何列表写入 manifest。"""
+
     write_json(path, {"samples": entries})
 
 
 def load_manifest(path: str | Path) -> list[dict[str, Any]]:
+    """读取 manifest 中的样本列表。"""
+
     payload = read_json(path)
     return payload.get("samples", [])

@@ -10,25 +10,27 @@ from .io_utils import read_json, write_json
 
 
 def load_label_result(label_json_path: str | Path) -> dict[str, Any]:
+    """读取单个标注结果文件。"""
+
     payload = read_json(label_json_path)
     if not payload.get("success", False):
-        raise RuntimeError(f"Label job failed: {label_json_path}")
+        raise RuntimeError(f"标注任务失败：{label_json_path}")
     return payload
 
 
 def build_delta_dataset(
     *,
     manifest_path: str | Path,
-    project_root: str | Path | None = None,
     xtb_labels_dir: str | Path,
     gaussian_labels_dir: str | Path,
     npz_output_path: str | Path,
     metadata_output_path: str | Path,
 ) -> dict[str, Any]:
+    """读取几何与标注结果，构建统一的 delta 数据集。"""
+
     manifest_entries = load_manifest(manifest_path)
     xtb_labels_dir = Path(xtb_labels_dir)
     gaussian_labels_dir = Path(gaussian_labels_dir)
-    project_root_path = Path(project_root).resolve() if project_root is not None else None
 
     sample_ids: list[str] = []
     atomic_numbers: list[np.ndarray] = []
@@ -41,13 +43,13 @@ def build_delta_dataset(
     delta_forces: list[np.ndarray] = []
     per_sample_metadata: list[dict[str, Any]] = []
 
+    manifest_root = Path(manifest_path).resolve().parent.parent.parent
+
     for entry in manifest_entries:
         sample_id = entry["sample_id"]
         geometry_file = Path(entry["geometry_file"])
         if not geometry_file.is_absolute():
-            if project_root_path is None:
-                raise ValueError("Relative geometry paths require project_root so they can be resolved reliably.")
-            geometry_file = project_root_path / geometry_file
+            geometry_file = manifest_root / geometry_file
 
         xtb_result = load_label_result(xtb_labels_dir / sample_id / "label.json")
         target_result = load_label_result(gaussian_labels_dir / sample_id / "label.json")
@@ -116,6 +118,8 @@ def build_delta_dataset(
 
 
 def load_delta_dataset(npz_path: str | Path, metadata_path: str | Path) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    """读取之前保存的 delta 数据集。"""
+
     dataset = np.load(npz_path, allow_pickle=True)
     metadata = read_json(metadata_path)
     return {key: dataset[key] for key in dataset.files}, metadata

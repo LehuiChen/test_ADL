@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-from .io_utils import ensure_dir
+from .io_utils import ensure_dir, read_json
 
 
 def _normalize_shell_lines(block: str | Iterable[str] | None) -> list[str]:
@@ -206,9 +206,17 @@ def launch_python_job(
             timeout_seconds=int(cluster_config.get("poll_timeout_seconds", 86400)),
             poll_interval_seconds=int(cluster_config.get("poll_interval_seconds", 30)),
         )
+        try:
+            status_payload = read_json(status_file)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"PBS job `{job_name}` finished but status file could not be read: {status_file}") from exc
+        if not bool(status_payload.get("success", False)):
+            error_type = status_payload.get("error_type", "UnknownError")
+            error_message = status_payload.get("error_message", "PBS job reported failure without an error_message.")
+            raise RuntimeError(f"PBS job `{job_name}` failed: {error_type}: {error_message}")
 
     return {
-        "status": "submitted",
+        "status": "completed" if wait else "submitted",
         "job_name": job_name,
         "job_id": job_id,
         "status_file": str(status_file),
