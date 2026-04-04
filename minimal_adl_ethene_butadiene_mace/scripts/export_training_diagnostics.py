@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import csv
@@ -75,7 +75,7 @@ def ensure_history_placeholder(path: Path, model_key: str) -> dict:
     payload = {
         "available": False,
         "model": model_key,
-        "reason": "当前运行记录中没有结构化逐 epoch history，通常意味着 ANI/MLatom 接口未暴露该信息。",
+        "reason": "Structured epoch history was not exposed by the current MLatom/MACE interface.",
     }
     write_json(path, payload)
     return payload
@@ -92,7 +92,7 @@ def ensure_split_placeholder(path: Path) -> dict:
         "subtrain_sample_ids": [],
         "validation_sample_ids": [],
         "rows": [],
-        "reason": "当前运行记录中没有保存训练切分信息。",
+        "reason": "Training split information was not saved by this run.",
     }
     write_json(path, payload)
     return payload
@@ -105,8 +105,8 @@ def ensure_prediction_placeholder(path: Path, fieldnames: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="汇总训练阶段诊断产物，供 notebook 和汇报直接读取。")
-    parser.add_argument("--config", required=True, help="YAML 配置文件路径。")
+    parser = argparse.ArgumentParser(description="Export training diagnostics for the MACE TS + stop-on-uncertainty workflow.")
+    parser.add_argument("--config", required=True, help="Path to the YAML config file.")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -145,6 +145,7 @@ def main() -> None:
         "generated_at": timestamp_string(),
         "config_file": str(Path(config["config_path"]).resolve()),
         "models_dir": str(Path(paths_cfg["models_dir"]).resolve()),
+        "results_dir": str(Path(paths_cfg["results_dir"]).resolve()),
         "training_summary_file": str(training_summary_path.resolve()),
         "training_state_file": str(training_state_path.resolve()),
         "train_main_status_file": str(train_main_status_path.resolve()),
@@ -190,11 +191,20 @@ def main() -> None:
             "preferred_history_file": str(main_history_path.resolve()),
             "aux_prediction_file": str(aux_predictions_path.resolve()),
             "aux_history_file": str(aux_history_path.resolve()),
+            "cumulative_manifest_file": str(Path(paths_cfg.get("cumulative_labeled_manifest", "")).resolve())
+            if paths_cfg.get("cumulative_labeled_manifest")
+            else None,
+            "ts_seed_summary_file": str(Path(paths_cfg.get("ts_seed_summary_file", "")).resolve())
+            if paths_cfg.get("ts_seed_summary_file")
+            else None,
+            "active_learning_history_file": str(Path(paths_cfg.get("active_learning_round_history_file", "")).resolve())
+            if paths_cfg.get("active_learning_round_history_file")
+            else None,
         },
     }
 
     write_json(diagnostics_path, diagnostics)
-    print(f"训练诊断产物汇总完成：{diagnostics_path}")
+    print(f"Exported training diagnostics -> {diagnostics_path}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Python 缓存
+﻿# Python 缓存
 __pycache__/
 *.py[cod]
 
@@ -14,9 +14,8 @@ Thumbs.db
 /*.pdf
 
 # 最小 ADL 项目的运行产物
-/minimal_adl_ethene_butadiene/data/raw/geometries/
-/minimal_adl_ethene_butadiene/data/raw/geometry_pool_manifest.json
-/minimal_adl_ethene_butadiene/data/raw/initial_selection_manifest.json
+/minimal_adl_ethene_butadiene/data/raw/round_*_initial_conditions/
+/minimal_adl_ethene_butadiene/data/raw/round_*_selected/
 /minimal_adl_ethene_butadiene/data/processed/*.npz
 /minimal_adl_ethene_butadiene/data/processed/*.json
 /minimal_adl_ethene_butadiene/labels/xtb/*
@@ -31,9 +30,8 @@ Thumbs.db
 !/minimal_adl_ethene_butadiene/results/.gitkeep
 
 # MACE 并列工程运行产物
-/minimal_adl_ethene_butadiene_mace/data/raw/geometries/
-/minimal_adl_ethene_butadiene_mace/data/raw/geometry_pool_manifest.json
-/minimal_adl_ethene_butadiene_mace/data/raw/initial_selection_manifest.json
+/minimal_adl_ethene_butadiene_mace/data/raw/round_*_initial_conditions/
+/minimal_adl_ethene_butadiene_mace/data/raw/round_*_selected/
 /minimal_adl_ethene_butadiene_mace/data/processed/*.npz
 /minimal_adl_ethene_butadiene_mace/data/processed/*.json
 /minimal_adl_ethene_butadiene_mace/labels/xtb/*
@@ -64,10 +62,9 @@ Thumbs.db
 /minimal_adl_ethene_butadiene_nequip/results/*
 !/minimal_adl_ethene_butadiene_nequip/results/.gitkeep
 
-# KREG 骞跺垪宸ョ▼杩愯浜х墿
-/minimal_adl_ethene_butadiene_KREG/data/raw/geometries/
-/minimal_adl_ethene_butadiene_KREG/data/raw/geometry_pool_manifest.json
-/minimal_adl_ethene_butadiene_KREG/data/raw/initial_selection_manifest.json
+# KREG 并列工程运行产物
+/minimal_adl_ethene_butadiene_KREG/data/raw/round_*_initial_conditions/
+/minimal_adl_ethene_butadiene_KREG/data/raw/round_*_selected/
 /minimal_adl_ethene_butadiene_KREG/data/processed/*.npz
 /minimal_adl_ethene_butadiene_KREG/data/processed/*.json
 /minimal_adl_ethene_butadiene_KREG/labels/xtb/*
