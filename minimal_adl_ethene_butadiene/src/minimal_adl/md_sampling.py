@@ -252,12 +252,32 @@ def _trajectory_prefix(output_dir: Path, trajectory_id: str) -> Path:
     return output_dir / trajectory_id
 
 
-def _dump_trajectory_files(traj, trajectory_prefix: Path) -> tuple[str, str]:
+def _select_dumped_trajectory_steps(traj, dump_interval: int) -> list[Any]:
+    selected_steps: list[Any] = []
+    for step_position, step in enumerate(traj.steps):
+        if step_position == 0:
+            selected_steps.append(step)
+            continue
+        step_index = int(getattr(step, "step", len(selected_steps)))
+        if step_index % dump_interval == 0:
+            selected_steps.append(step)
+
+    if traj.steps:
+        last_step = traj.steps[-1]
+        if not selected_steps or selected_steps[-1] is not last_step:
+            selected_steps.append(last_step)
+    return selected_steps
+
+
+def _dump_trajectory_files(traj, trajectory_prefix: Path, dump_interval: int, ml) -> tuple[str, str, int]:
     trajectory_prefix.parent.mkdir(parents=True, exist_ok=True)
-    traj.dump(filename=str(trajectory_prefix), format="plain_text")
+    dumped_steps = _select_dumped_trajectory_steps(traj, dump_interval)
+    dumped_trajectory = ml.data.molecular_trajectory()
+    dumped_trajectory.steps = list(dumped_steps)
+    dumped_trajectory.dump(filename=str(trajectory_prefix), format="plain_text")
     xyz_file = trajectory_prefix.with_suffix(".xyz")
     vxyz_file = trajectory_prefix.with_suffix(".vxyz")
-    return str(xyz_file.resolve()), str(vxyz_file.resolve())
+    return str(xyz_file.resolve()), str(vxyz_file.resolve()), len(dumped_steps)
 
 
 def _build_uncertainty_stop_function(threshold: float | None):
@@ -342,7 +362,12 @@ def run_md_sampling_round(
                 stop_function=stop_function,
             )
             traj = dyn.molecular_trajectory
-            trajectory_xyz_file, trajectory_vxyz_file = _dump_trajectory_files(traj, trajectory_prefix)
+            trajectory_xyz_file, trajectory_vxyz_file, dumped_num_steps = _dump_trajectory_files(
+                traj,
+                trajectory_prefix,
+                dump_interval,
+                ml,
+            )
             last_step = traj.steps[-1]
             last_molecule = last_step.molecule
             last_uncertainty = _trajectory_step_uq(last_molecule)
@@ -361,6 +386,7 @@ def run_md_sampling_round(
                 "time_step_fs": md_time_step,
                 "maximum_propagation_time_fs": md_max_time,
                 "save_interval_steps": dump_interval,
+                "dumped_num_steps": dumped_num_steps,
                 "stopped_by_uncertainty": stopped_by_uncertainty,
                 "last_time_fs": float(last_step.time),
                 "last_frame_index": int(last_step.step),
