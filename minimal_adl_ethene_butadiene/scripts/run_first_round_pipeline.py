@@ -479,7 +479,7 @@ def main() -> None:
     pipeline_summary["success"] = True
     pipeline_summary["finished_at"] = timestamp_string()
     persist_summary()
-    print(f"First-round TS + bidirectional MD pipeline completed: {pipeline_run_summary_path}")
+    print(f"First-round TS + stop-on-uncertainty bidirectional MD pipeline completed: {pipeline_run_summary_path}")
 
 
 if __name__ == "__main__":

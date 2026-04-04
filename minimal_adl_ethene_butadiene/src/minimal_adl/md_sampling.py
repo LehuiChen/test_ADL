@@ -260,6 +260,22 @@ def _dump_trajectory_files(traj, trajectory_prefix: Path) -> tuple[str, str]:
     return str(xyz_file.resolve()), str(vxyz_file.resolve())
 
 
+def _build_uncertainty_stop_function(threshold: float | None):
+    def _stop_function(*, mol, stop_state=None):
+        uncertain = bool(getattr(mol, "uncertain", False))
+        if not uncertain and threshold is not None:
+            uq_value = _trajectory_step_uq(mol)
+            uncertain = uq_value is not None and uq_value > float(threshold)
+            if uncertain:
+                try:
+                    mol.uncertain = True
+                except Exception:  # noqa: BLE001
+                    pass
+        return uncertain, stop_state
+
+    return _stop_function
+
+
 def run_md_sampling_round(
     *,
     config: dict[str, Any],
@@ -284,6 +300,8 @@ def run_md_sampling_round(
     model = create_delta_model_bundle(config, config["paths"]["models_dir"])
     model.load_trained_models(config["paths"]["models_dir"], load_main=True, load_aux=True)
     model.uq_threshold = state.get("uq_threshold")
+    if model.uq_threshold is None:
+        raise ValueError("MD active learning requires a uq_threshold so trajectories can stop at the first uncertain point.")
 
     sampling_cfg = config.get("sampling", {})
     md_cfg = sampling_cfg.get("md", {})
@@ -296,6 +314,7 @@ def run_md_sampling_round(
     trajectory_mode = str(md_cfg.get("trajectory_mode", "bidirectional")).strip().lower()
     if trajectory_mode not in {"bidirectional", "forward"}:
         raise ValueError(f"Unsupported trajectory mode: {trajectory_mode}")
+    stop_function = _build_uncertainty_stop_function(float(model.uq_threshold))
 
     results_dir = Path(config["paths"]["results_dir"]).resolve()
     trajectories_dir = ensure_dir(results_dir / "trajectories" / f"round_{round_index:03d}")
@@ -320,9 +339,16 @@ def run_md_sampling_round(
                 ensemble=ensemble,
                 time_step=md_time_step,
                 maximum_propagation_time=md_max_time,
+                stop_function=stop_function,
             )
             traj = dyn.molecular_trajectory
             trajectory_xyz_file, trajectory_vxyz_file = _dump_trajectory_files(traj, trajectory_prefix)
+            last_step = traj.steps[-1]
+            last_molecule = last_step.molecule
+            last_uncertainty = _trajectory_step_uq(last_molecule)
+            stopped_by_uncertainty = bool(getattr(last_molecule, "uncertain", False))
+            if not stopped_by_uncertainty and last_uncertainty is not None:
+                stopped_by_uncertainty = last_uncertainty > float(model.uq_threshold)
 
             trajectory_summary = {
                 "trajectory_id": trajectory_id,
@@ -335,6 +361,10 @@ def run_md_sampling_round(
                 "time_step_fs": md_time_step,
                 "maximum_propagation_time_fs": md_max_time,
                 "save_interval_steps": dump_interval,
+                "stopped_by_uncertainty": stopped_by_uncertainty,
+                "last_time_fs": float(last_step.time),
+                "last_frame_index": int(last_step.step),
+                "last_uncertainty": last_uncertainty,
                 "generated_at": timestamp_string(),
             }
             trajectory_summary_file = trajectory_prefix.with_suffix(".json")
@@ -342,55 +372,45 @@ def run_md_sampling_round(
             trajectory_summary["trajectory_summary_file"] = str(trajectory_summary_file.resolve())
             trajectory_summaries.append(trajectory_summary)
 
-            for step in traj.steps:
-                if int(step.step) % dump_interval != 0:
-                    continue
-                molecule = step.molecule
-                frame_index = int(step.step)
-                uncertainty = _trajectory_step_uq(molecule)
+            if stopped_by_uncertainty:
                 frame_record = FrameRecord(
-                    sample_id=f"{trajectory_id}_f{frame_index:04d}",
+                    sample_id=f"{trajectory_id}_stop",
                     trajectory_id=trajectory_id,
                     initcond_id=initcond_id,
                     direction=direction,
                     round_index=round_index,
-                    frame_index=frame_index,
-                    time_fs=float(step.time),
-                    uq=uncertainty,
-                    exceeds_threshold=(
-                        model.uq_threshold is not None and uncertainty is not None and uncertainty > float(model.uq_threshold)
-                    ),
-                    predicted_total_energy=_trajectory_step_energy(molecule),
-                    symbols=_molecule_symbols(molecule),
-                    atomic_numbers=_molecule_atomic_numbers(molecule),
-                    coordinates=_trajectory_step_coordinates(molecule),
-                    charge=_molecule_charge(molecule),
-                    multiplicity=_molecule_multiplicity(molecule),
+                    frame_index=int(last_step.step),
+                    time_fs=float(last_step.time),
+                    uq=last_uncertainty,
+                    exceeds_threshold=True,
+                    predicted_total_energy=_trajectory_step_energy(last_molecule),
+                    symbols=_molecule_symbols(last_molecule),
+                    atomic_numbers=_molecule_atomic_numbers(last_molecule),
+                    coordinates=_trajectory_step_coordinates(last_molecule),
+                    charge=_molecule_charge(last_molecule),
+                    multiplicity=_molecule_multiplicity(last_molecule),
                     trajectory_xyz_file=trajectory_xyz_file,
                     trajectory_summary_file=str(trajectory_summary_file.resolve()),
                 )
                 frame_payloads.append(frame_record.to_payload())
 
-    num_uncertain_frames = sum(
-        1
-        for frame in frame_payloads
-        if model.uq_threshold is not None
-        and frame.get("uncertainty") is not None
-        and float(frame["uncertainty"]) > float(model.uq_threshold)
-    )
+    num_uncertain_points = len(frame_payloads)
 
     payload = {
         "round_index": round_index,
         "uq_threshold": model.uq_threshold,
         "num_trajectories": len(trajectory_summaries),
         "num_frames": len(frame_payloads),
+        "num_candidate_samples": len(frame_payloads),
         "num_samples": len(frame_payloads),
-        "num_uncertain_samples": num_uncertain_frames if model.uq_threshold is not None else None,
+        "num_uncertain_samples": num_uncertain_points,
+        "num_uncertain_trajectories": num_uncertain_points,
         "time_step_fs": md_time_step,
         "maximum_propagation_time_fs": md_max_time,
         "save_interval_steps": dump_interval,
         "ensemble": ensemble,
         "trajectory_mode": trajectory_mode,
+        "sampling_logic": "stop_on_first_uncertain_point",
         "frame_manifest_file": str(frame_manifest_path.resolve()),
         "trajectory_summary_file": str(trajectory_summary_path.resolve()),
         "trajectories": trajectory_summaries,
@@ -457,12 +477,13 @@ def select_md_frames(
     results_dir = Path(config["paths"]["results_dir"]).resolve()
     frame_manifest_path = Path(frame_manifest_path or results_dir / f"round_{round_index:03d}_md_frame_manifest.json").resolve()
     payload = read_json(frame_manifest_path)
-    frames = payload.get("frames", [])
+    frames = payload.get("samples") or payload.get("frames", [])
     threshold = payload.get("uq_threshold")
     selection_limit = int(max_new_points if max_new_points is not None else config["active_learning"].get("max_new_points_per_round", 100))
     rmsd_threshold = float(
         dedup_rmsd_threshold if dedup_rmsd_threshold is not None else config.get("sampling", {}).get("dedup_rmsd_threshold", 0.05)
     )
+    total_trajectories = int(payload.get("num_trajectories", len(frames)))
 
     sorted_frames = sorted(
         frames,
@@ -525,14 +546,17 @@ def select_md_frames(
     selection_summary_path = results_dir / f"round_{round_index:03d}_selection_summary.json"
     write_manifest(manifest_entries, selection_manifest_path)
 
-    total = max(len(sorted_frames), 1)
+    total = max(total_trajectories, 1)
     summary = {
         "round_index": round_index,
         "uq_threshold": threshold,
+        "num_trajectories": total_trajectories,
         "num_frame_samples": len(sorted_frames),
+        "num_candidate_samples": len(sorted_frames),
         "num_pool_samples": len(sorted_frames),
         "num_uncertain_frames": len(uncertain_frames),
         "num_uncertain_samples": len(uncertain_frames),
+        "num_uncertain_trajectories": len(uncertain_frames),
         "selected_count": len(selected_frames),
         "selected_sample_ids": [entry["sample_id"] for entry in manifest_entries],
         "uncertain_ratio": len(uncertain_frames) / total,
@@ -540,7 +564,8 @@ def select_md_frames(
         or len(selected_frames) < int(config["active_learning"].get("min_new_points", 5)),
         "rejected_due_to_history_rmsd": rejected_due_to_history,
         "rejected_due_to_current_round_rmsd": rejected_due_to_current_round,
-        "selection_basis": "md_frame_uq",
+        "selection_basis": "first_uncertain_md_point",
+        "sampling_logic": payload.get("sampling_logic", "stop_on_first_uncertain_point"),
         "frame_manifest_file": str(frame_manifest_path.resolve()),
         "selection_manifest_file": str(selection_manifest_path.resolve()),
         "generated_at": timestamp_string(),

@@ -4,7 +4,7 @@
 模型类型：`ANI`  
 环境名：`ADL_env`
 
-当前默认流程已经切到 `TS seed + harmonic-quantum-boltzmann 初始条件 + 双向 MD 主动学习`，不再使用旧的静态 `400` 点几何池。
+当前默认流程已经切到 `TS seed + harmonic-quantum-boltzmann 初始条件 + 双向 MD 主动学习`，并且按 MLatom 官方 `batch_md` 思路在首个不确定点停止轨迹，不再使用旧的静态 `400` 点几何池。
 
 ## 当前主线
 
@@ -13,7 +13,8 @@
 3. 累计标注样本写入 `data/processed/cumulative_labeled_manifest.json`
 4. 构建 delta 数据集并训练 ANI 主模型 / 辅助模型
 5. 后续每轮从 TS seed 再采样 `100` 个初始条件，跑双向 `±150 fs` MD
-6. 从 MD 轨迹帧里按 UQ + RMSD 去重选择下一轮样本
+6. 每条轨迹在首个 `UQ > threshold` 的时刻停止，并返回这个不确定点
+7. 对返回的不确定点做 UQ 排序与 RMSD 去重，形成下一轮样本
 
 ## 文档
 

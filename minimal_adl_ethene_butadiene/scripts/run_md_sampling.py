@@ -18,7 +18,7 @@ from minimal_adl.pbs import launch_python_job
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run bidirectional MD sampling from the current delta model.")
+    parser = argparse.ArgumentParser(description="Run bidirectional MD and stop each trajectory at the first uncertain point.")
     parser.add_argument("--config", required=True, help="Path to the YAML config file.")
     parser.add_argument("--round-index", type=int, required=True, help="Round index to sample for.")
     parser.add_argument(
@@ -85,7 +85,7 @@ def main() -> None:
             status_file=status_path,
             job_name=f"adl_md_r{args.round_index:03d}",
         )
-        print(f"Submitted MD sampling job: {job_info}")
+        print(f"Submitted stop-on-uncertainty MD job: {job_info}")
         return
 
     try:
@@ -109,11 +109,13 @@ def main() -> None:
                 "trajectory_summary_file": payload["trajectory_summary_file"],
                 "num_trajectories": payload["num_trajectories"],
                 "num_frames": payload["num_frames"],
+                "num_uncertain_points": payload.get("num_candidate_samples"),
             },
         )
         print(
-            "Completed MD sampling round "
-            f"{args.round_index}: {payload['num_trajectories']} trajectories, {payload['num_frames']} frames"
+            "Completed stop-on-uncertainty MD round "
+            f"{args.round_index}: {payload['num_trajectories']} trajectories, "
+            f"{payload.get('num_candidate_samples', payload['num_frames'])} returned uncertain points"
         )
     except Exception as exc:  # noqa: BLE001
         write_json(

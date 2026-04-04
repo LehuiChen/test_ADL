@@ -15,7 +15,7 @@ from minimal_adl.md_sampling import select_md_frames
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Select high-UQ MD frames for the next labeling round.")
+    parser = argparse.ArgumentParser(description="Select returned uncertain MD points for the next labeling round.")
     parser.add_argument("--config", required=True, help="Path to the YAML config file.")
     parser.add_argument("--round-index", type=int, required=True, help="Round index to select from.")
     parser.add_argument("--frame-manifest", default=None, help="Override the MD frame manifest path.")
@@ -37,7 +37,7 @@ def main() -> None:
         dedup_rmsd_threshold=args.dedup_rmsd_threshold,
     )
     print(
-        "Selected MD frames for round "
+        "Selected returned MD uncertain points for round "
         f"{args.round_index}: {summary['selected_count']} kept, converged = {summary['converged']}"
     )
 
