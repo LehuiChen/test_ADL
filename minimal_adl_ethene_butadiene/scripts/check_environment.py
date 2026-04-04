@@ -17,6 +17,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from minimal_adl.config import load_config
+from minimal_adl.gaussian_ts_seed import parse_gaussian_ts_log
+from minimal_adl.geometry import save_xyz
 from minimal_adl.io_utils import write_json
 from minimal_adl.mlatom_bridge import create_mlatom_method
 
@@ -103,7 +105,15 @@ def run_optional_mlatom_xtb_test(config_path: str | Path) -> dict[str, Any]:
         config = load_config(config_path)
         import mlatom as ml
 
-        geometry_path = Path(config["paths"]["seed_geometry"]).resolve()
+        seed_xyz_path = Path(config["paths"]["ts_seed_xyz"]).resolve()
+        if seed_xyz_path.exists():
+            geometry_path = seed_xyz_path
+            geometry_source = "prepared_ts_seed_xyz"
+        else:
+            ts_data = parse_gaussian_ts_log(config["paths"]["ts_frequency_source"])
+            geometry_path = Path(config["paths"]["results_dir"]).resolve() / "check_environment_ts_seed.xyz"
+            save_xyz(ts_data.geometry_record, geometry_path, comment="temporary ts seed for environment check")
+            geometry_source = "temporary_xyz_from_ts_log"
         molecule = ml.data.molecule()
         molecule.load(str(geometry_path), format="xyz")
         method = create_mlatom_method(
@@ -121,6 +131,7 @@ def run_optional_mlatom_xtb_test(config_path: str | Path) -> dict[str, Any]:
         )
         payload["ok"] = True
         payload["geometry_file"] = str(geometry_path)
+        payload["geometry_source"] = geometry_source
         payload["energy"] = float(molecule.energy)
     except Exception as exc:  # noqa: BLE001
         payload["error_type"] = type(exc).__name__

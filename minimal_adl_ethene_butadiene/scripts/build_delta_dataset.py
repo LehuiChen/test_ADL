@@ -21,7 +21,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config(args.config)
-    manifest_path = args.manifest or config["paths"]["geometry_pool_manifest"]
+    manifest_path = args.manifest or config["paths"]["cumulative_labeled_manifest"]
 
     metadata = build_delta_dataset(
         manifest_path=manifest_path,
@@ -35,4 +35,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

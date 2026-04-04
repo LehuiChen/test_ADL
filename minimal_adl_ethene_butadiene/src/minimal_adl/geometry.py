@@ -26,6 +26,7 @@ class GeometryRecord:
     charge: int = 0
     multiplicity: int = 1
     source: str = ""
+    source_kind: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -42,6 +43,7 @@ class GeometryRecord:
             "multiplicity": self.multiplicity,
             "num_atoms": len(self.symbols),
             "source": self.source,
+            "source_kind": self.source_kind,
             "metadata": self.metadata,
         }
 
@@ -87,6 +89,7 @@ def _load_json(path: Path) -> GeometryRecord:
         charge=int(payload.get("charge", 0)),
         multiplicity=int(payload.get("multiplicity", 1)),
         source=path.name,
+        source_kind=str(payload.get("source_kind", payload.get("source_format", "mlatom_json"))),
         metadata={"source_format": "mlatom_json"},
     )
 
@@ -161,4 +164,3 @@ def load_manifest(path: str | Path) -> list[dict[str, Any]]:
 
     payload = read_json(path)
     return payload.get("samples", [])
-

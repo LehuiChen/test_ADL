@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from minimal_adl.config import load_config
-from minimal_adl.geometry import load_manifest, write_manifest
+from minimal_adl.geometry import load_manifest
 from minimal_adl.io_utils import read_json, timestamp_string, write_json
 
 
@@ -37,14 +37,25 @@ def label_success(label_file: Path) -> bool:
     return bool(payload.get("success", False))
 
 
-def manifest_sample_ids(path: Path) -> list[str]:
+def manifest_entries(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [str(item["sample_id"]) for item in load_manifest(path)]
+    return load_manifest(path)
+
+
+def manifest_sample_ids(path: Path) -> list[str]:
+    return [str(item["sample_id"]) for item in manifest_entries(path)]
 
 
 def count_successful_labels(labels_root: Path, sample_ids: list[str]) -> int:
     return sum(1 for sample_id in sample_ids if label_success(labels_root / sample_id / "label.json"))
+
+
+def cumulative_contains_all(cumulative_manifest_path: Path, sample_ids: list[str]) -> bool:
+    if not cumulative_manifest_path.exists():
+        return False
+    cumulative_ids = {str(item["sample_id"]) for item in manifest_entries(cumulative_manifest_path)}
+    return set(sample_ids).issubset(cumulative_ids)
 
 
 def run_python_script(command: list[str], *, cwd: Path) -> None:
@@ -52,29 +63,33 @@ def run_python_script(command: list[str], *, cwd: Path) -> None:
 
 
 def main() -> None:
-    base_stage_names = [
+    stage_names = [
         "check_environment",
-        "sample_initial_geometries",
-        "initial_selection",
-        "run_xtb_labels",
-        "run_target_labels",
+        "prepare_ts_seed",
+        "sample_round_000_initial_conditions",
+        "labels_round_000",
         "build_delta_dataset",
         "train_main_model",
         "train_aux_model",
         "export_training_diagnostics",
-        "evaluate_uncertainty",
-        "select_round_001",
+        "run_md_sampling_round_001",
+        "select_round_001_frames",
     ]
-    parser = argparse.ArgumentParser(description="一键编排最小版 ADL 第一轮主线，并支持恢复执行。")
-    parser.add_argument("--config", required=True, help="YAML 配置文件路径。")
-    parser.add_argument("--from-stage", choices=base_stage_names + ["smoke_test_labels"], default=None)
-    parser.add_argument("--to-stage", choices=base_stage_names + ["smoke_test_labels"], default=None)
+
+    parser = argparse.ArgumentParser(description="Run the ANI TS-seed + bidirectional MD first-round pipeline.")
+    parser.add_argument("--config", required=True, help="Path to the YAML config file.")
+    parser.add_argument("--from-stage", choices=stage_names, default=None)
+    parser.add_argument("--to-stage", choices=stage_names, default=None)
     parser.add_argument("--resume", dest="resume", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--force", action="store_true", help="忽略已完成状态并强制重跑选定阶段。")
+    parser.add_argument("--force", action="store_true", help="Rerun selected stages even if outputs already exist.")
     parser.add_argument("--submit-mode-labels", choices=["local", "pbs"], default="pbs")
     parser.add_argument("--submit-mode-train", choices=["local", "pbs"], default="pbs")
-    parser.add_argument("--submit-mode-uq", choices=["local", "pbs"], default="pbs")
-    parser.add_argument("--with-smoke-tests", action="store_true", help="在完整标注前先对少量样本做联通测试。")
+    parser.add_argument("--submit-mode-md", choices=["local", "pbs"], default="pbs")
+    parser.add_argument("--md-num-initial-conditions", type=int, default=None)
+    parser.add_argument("--md-maximum-propagation-time", type=float, default=None)
+    parser.add_argument("--md-time-step", type=float, default=None)
+    parser.add_argument("--md-save-interval-steps", type=int, default=None)
+    parser.add_argument("--device", default=None, help="Optional training / MD device override, such as cpu or cuda.")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -86,34 +101,31 @@ def main() -> None:
     results_dir.mkdir(parents=True, exist_ok=True)
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    geometry_manifest_path = Path(paths_cfg["geometry_pool_manifest"]).resolve()
-    initial_manifest_path = Path(paths_cfg["initial_selection_manifest"]).resolve()
+    ts_seed_json_path = Path(paths_cfg["ts_seed_json"]).resolve()
+    ts_seed_xyz_path = Path(paths_cfg["ts_seed_xyz"]).resolve()
+    ts_seed_summary_path = Path(paths_cfg["ts_seed_summary_file"]).resolve()
+    round_000_manifest_path = results_dir / "round_000_initial_conditions_manifest.json"
+    round_000_labels_status_path = results_dir / "round_000_labels_status.json"
+    cumulative_manifest_path = Path(paths_cfg["cumulative_labeled_manifest"]).resolve()
     delta_npz_path = Path(paths_cfg["delta_dataset_npz"]).resolve()
     delta_metadata_path = Path(paths_cfg["delta_dataset_metadata"]).resolve()
     train_main_status_path = models_dir / "train_main_status.json"
     train_aux_status_path = models_dir / "train_aux_status.json"
     training_diagnostics_path = Path(paths_cfg.get("training_diagnostics_file", models_dir / "training_diagnostics.json")).resolve()
-    uncertainty_status_path = results_dir / "uncertainty_status.json"
-    uncertainty_latest_path = Path(results_dir / "uncertainty_latest.json").resolve()
-    round_selection_summary_path = results_dir / "round_001_selection_summary.json"
-    round_selected_manifest_path = results_dir / "round_001_selected_manifest.json"
+    round_001_md_status_path = results_dir / "round_001_md_sampling_status.json"
+    round_001_md_frame_manifest_path = results_dir / "round_001_md_frame_manifest.json"
+    round_001_selection_summary_path = results_dir / "round_001_selection_summary.json"
+    round_001_selection_manifest_path = results_dir / "round_001_selected_manifest.json"
+    active_learning_history_path = Path(
+        paths_cfg.get("active_learning_round_history_file", results_dir / "active_learning_round_history.json")
+    ).resolve()
     check_environment_report_path = Path(paths_cfg.get("check_environment_report", results_dir / "check_environment_latest.json")).resolve()
     pipeline_run_summary_path = Path(paths_cfg.get("pipeline_run_summary", results_dir / "pipeline_run_summary.json")).resolve()
-    smoke_manifest_path = results_dir / "smoke_test_manifest.json"
-
-    stage_names = base_stage_names.copy()
-    if args.with_smoke_tests:
-        stage_names.insert(stage_names.index("run_xtb_labels"), "smoke_test_labels")
-
-    if args.from_stage and args.from_stage not in stage_names:
-        raise ValueError(f"当前阶段列表中不存在 from-stage={args.from_stage}")
-    if args.to_stage and args.to_stage not in stage_names:
-        raise ValueError(f"当前阶段列表中不存在 to-stage={args.to_stage}")
 
     start_index = 0 if args.from_stage is None else stage_names.index(args.from_stage)
     end_index = len(stage_names) - 1 if args.to_stage is None else stage_names.index(args.to_stage)
     if start_index > end_index:
-        raise ValueError("from-stage 不能排在 to-stage 后面。")
+        raise ValueError("from-stage must not appear after to-stage.")
     selected_stages = stage_names[start_index : end_index + 1]
 
     pipeline_summary: dict[str, Any] = {
@@ -124,8 +136,8 @@ def main() -> None:
         "force": args.force,
         "submit_mode_labels": args.submit_mode_labels,
         "submit_mode_train": args.submit_mode_train,
-        "submit_mode_uq": args.submit_mode_uq,
-        "with_smoke_tests": args.with_smoke_tests,
+        "submit_mode_md": args.submit_mode_md,
+        "device_override": args.device,
         "stages": [],
         "success": False,
     }
@@ -133,44 +145,38 @@ def main() -> None:
     def persist_summary() -> None:
         write_json(pipeline_run_summary_path, pipeline_summary)
 
-    def build_smoke_manifest() -> dict[str, Any]:
-        initial_entries = load_manifest(initial_manifest_path)
-        smoke_entries = initial_entries[: min(3, len(initial_entries))]
-        write_manifest(smoke_entries, smoke_manifest_path)
-        return {
-            "smoke_manifest": str(smoke_manifest_path),
-            "num_samples": len(smoke_entries),
-            "sample_ids": [entry["sample_id"] for entry in smoke_entries],
-        }
+    def round_000_sample_ids() -> list[str]:
+        return manifest_sample_ids(round_000_manifest_path)
 
     def check_environment_complete() -> bool:
         return bool(safe_read_json(check_environment_report_path).get("checks"))
 
-    def sample_geometries_complete() -> bool:
-        return bool(manifest_sample_ids(geometry_manifest_path))
+    def prepare_ts_seed_complete() -> bool:
+        summary = safe_read_json(ts_seed_summary_path)
+        return (
+            ts_seed_json_path.exists()
+            and ts_seed_xyz_path.exists()
+            and summary.get("num_atoms") is not None
+            and summary.get("num_imaginary_frequencies") == 1
+        )
 
-    def initial_selection_complete() -> bool:
-        return bool(manifest_sample_ids(initial_manifest_path))
+    def round_000_sampling_complete() -> bool:
+        return bool(round_000_sample_ids())
 
-    def smoke_test_complete() -> bool:
-        sample_ids = manifest_sample_ids(smoke_manifest_path)
+    def labels_round_000_complete() -> bool:
+        sample_ids = round_000_sample_ids()
         if not sample_ids:
             return False
         xtb_root = Path(paths_cfg["xtb_labels_dir"]).resolve()
         gaussian_root = Path(paths_cfg["gaussian_labels_dir"]).resolve()
-        return count_successful_labels(xtb_root, sample_ids) == len(sample_ids) and count_successful_labels(gaussian_root, sample_ids) == len(sample_ids)
-
-    def xtb_labels_complete() -> bool:
-        sample_ids = manifest_sample_ids(initial_manifest_path)
-        return bool(sample_ids) and count_successful_labels(Path(paths_cfg["xtb_labels_dir"]).resolve(), sample_ids) == len(sample_ids)
-
-    def target_labels_complete() -> bool:
-        sample_ids = manifest_sample_ids(initial_manifest_path)
-        return bool(sample_ids) and count_successful_labels(Path(paths_cfg["gaussian_labels_dir"]).resolve(), sample_ids) == len(sample_ids)
+        xtb_ok = count_successful_labels(xtb_root, sample_ids) == len(sample_ids)
+        gaussian_ok = count_successful_labels(gaussian_root, sample_ids) == len(sample_ids)
+        return xtb_ok and gaussian_ok and cumulative_contains_all(cumulative_manifest_path, sample_ids)
 
     def delta_dataset_complete() -> bool:
         metadata = safe_read_json(delta_metadata_path)
-        return delta_npz_path.exists() and metadata.get("num_samples", 0) > 0
+        cumulative_ids = manifest_sample_ids(cumulative_manifest_path)
+        return delta_npz_path.exists() and metadata.get("num_samples", 0) >= len(cumulative_ids) > 0
 
     def train_main_complete() -> bool:
         return bool(safe_read_json(train_main_status_path).get("success", False))
@@ -182,11 +188,81 @@ def main() -> None:
         diagnostics = safe_read_json(training_diagnostics_path)
         return bool(diagnostics.get("artifacts"))
 
-    def uncertainty_complete() -> bool:
-        return bool(safe_read_json(uncertainty_status_path).get("success", False)) and uncertainty_latest_path.exists()
+    def md_sampling_complete() -> bool:
+        return bool(safe_read_json(round_001_md_status_path).get("success", False)) and round_001_md_frame_manifest_path.exists()
 
     def selection_complete() -> bool:
-        return round_selection_summary_path.exists() and round_selected_manifest_path.exists()
+        return (
+            round_001_selection_summary_path.exists()
+            and round_001_selection_manifest_path.exists()
+            and active_learning_history_path.exists()
+        )
+
+    def run_labels_round_000() -> dict[str, Any]:
+        try:
+            run_python_script(
+                [
+                    sys.executable,
+                    str((project_root / "scripts" / "run_xtb_labels.py").resolve()),
+                    "--config",
+                    str(config_path),
+                    "--manifest",
+                    str(round_000_manifest_path),
+                    "--submit-mode",
+                    args.submit_mode_labels,
+                    *([] if not args.force else ["--force"]),
+                ],
+                cwd=project_root,
+            )
+            run_python_script(
+                [
+                    sys.executable,
+                    str((project_root / "scripts" / "run_target_labels.py").resolve()),
+                    "--config",
+                    str(config_path),
+                    "--manifest",
+                    str(round_000_manifest_path),
+                    "--submit-mode",
+                    args.submit_mode_labels,
+                    *([] if not args.force else ["--force"]),
+                ],
+                cwd=project_root,
+            )
+            run_python_script(
+                [
+                    sys.executable,
+                    str((project_root / "scripts" / "update_cumulative_manifest.py").resolve()),
+                    "--config",
+                    str(config_path),
+                    "--manifest",
+                    str(round_000_manifest_path),
+                ],
+                cwd=project_root,
+            )
+        except Exception as exc:  # noqa: BLE001
+            write_json(
+                round_000_labels_status_path,
+                {
+                    "success": False,
+                    "manifest_file": str(round_000_manifest_path.resolve()),
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                    "traceback": traceback.format_exc(),
+                },
+            )
+            raise
+
+        payload = {
+            "success": True,
+            "manifest_file": str(round_000_manifest_path.resolve()),
+            "sample_ids": round_000_sample_ids(),
+            "xtb_labels_dir": str(Path(paths_cfg["xtb_labels_dir"]).resolve()),
+            "gaussian_labels_dir": str(Path(paths_cfg["gaussian_labels_dir"]).resolve()),
+            "cumulative_manifest_file": str(cumulative_manifest_path.resolve()),
+            "updated_at": timestamp_string(),
+        }
+        write_json(round_000_labels_status_path, payload)
+        return payload
 
     stages: dict[str, dict[str, Any]] = {
         "check_environment": {
@@ -207,116 +283,45 @@ def main() -> None:
                 {"report_file": str(check_environment_report_path)},
             )[1],
         },
-        "sample_initial_geometries": {
-            "is_complete": sample_geometries_complete,
+        "prepare_ts_seed": {
+            "is_complete": prepare_ts_seed_complete,
             "run": lambda: (
                 run_python_script(
                     [
                         sys.executable,
-                        str((project_root / "scripts" / "sample_initial_geometries.py").resolve()),
+                        str((project_root / "scripts" / "prepare_ts_seed.py").resolve()),
                         "--config",
                         str(config_path),
                     ],
                     cwd=project_root,
                 ),
-                {"geometry_pool_manifest": str(geometry_manifest_path)},
+                {
+                    "ts_seed_json": str(ts_seed_json_path),
+                    "ts_seed_xyz": str(ts_seed_xyz_path),
+                    "ts_seed_summary_file": str(ts_seed_summary_path),
+                },
             )[1],
         },
-        "initial_selection": {
-            "is_complete": initial_selection_complete,
+        "sample_round_000_initial_conditions": {
+            "is_complete": round_000_sampling_complete,
             "run": lambda: (
                 run_python_script(
                     [
                         sys.executable,
-                        str((project_root / "scripts" / "active_learning_loop.py").resolve()),
+                        str((project_root / "scripts" / "sample_ts_initial_conditions.py").resolve()),
                         "--config",
                         str(config_path),
-                        "--manifest",
-                        str(geometry_manifest_path),
-                        "--mode",
-                        "initial-selection",
                         "--round-index",
                         "0",
                     ],
                     cwd=project_root,
                 ),
-                {"initial_selection_manifest": str(initial_manifest_path)},
+                {"round_000_initial_conditions_manifest": str(round_000_manifest_path)},
             )[1],
         },
-        "smoke_test_labels": {
-            "is_complete": smoke_test_complete,
-            "run": lambda: (
-                build_smoke_manifest(),
-                run_python_script(
-                    [
-                        sys.executable,
-                        str((project_root / "scripts" / "run_xtb_labels.py").resolve()),
-                        "--config",
-                        str(config_path),
-                        "--manifest",
-                        str(smoke_manifest_path),
-                        "--submit-mode",
-                        args.submit_mode_labels,
-                        *([] if not args.force else ["--force"]),
-                    ],
-                    cwd=project_root,
-                ),
-                run_python_script(
-                    [
-                        sys.executable,
-                        str((project_root / "scripts" / "run_target_labels.py").resolve()),
-                        "--config",
-                        str(config_path),
-                        "--manifest",
-                        str(smoke_manifest_path),
-                        "--submit-mode",
-                        args.submit_mode_labels,
-                        *([] if not args.force else ["--force"]),
-                    ],
-                    cwd=project_root,
-                ),
-                {"smoke_manifest": str(smoke_manifest_path)},
-            )[-1],
-        },
-        "run_xtb_labels": {
-            "is_complete": xtb_labels_complete,
-            "run": lambda: (
-                run_python_script(
-                    [
-                        sys.executable,
-                        str((project_root / "scripts" / "run_xtb_labels.py").resolve()),
-                        "--config",
-                        str(config_path),
-                        "--manifest",
-                        str(initial_manifest_path),
-                        "--submit-mode",
-                        args.submit_mode_labels,
-                        *([] if not args.force else ["--force"]),
-                    ],
-                    cwd=project_root,
-                ),
-                {"labels_root": str(Path(paths_cfg["xtb_labels_dir"]).resolve())},
-            )[1],
-        },
-        "run_target_labels": {
-            "is_complete": target_labels_complete,
-            "run": lambda: (
-                run_python_script(
-                    [
-                        sys.executable,
-                        str((project_root / "scripts" / "run_target_labels.py").resolve()),
-                        "--config",
-                        str(config_path),
-                        "--manifest",
-                        str(initial_manifest_path),
-                        "--submit-mode",
-                        args.submit_mode_labels,
-                        *([] if not args.force else ["--force"]),
-                    ],
-                    cwd=project_root,
-                ),
-                {"labels_root": str(Path(paths_cfg["gaussian_labels_dir"]).resolve())},
-            )[1],
+        "labels_round_000": {
+            "is_complete": labels_round_000_complete,
+            "run": run_labels_round_000,
         },
         "build_delta_dataset": {
             "is_complete": delta_dataset_complete,
@@ -328,7 +333,7 @@ def main() -> None:
                         "--config",
                         str(config_path),
                         "--manifest",
-                        str(initial_manifest_path),
+                        str(cumulative_manifest_path),
                     ],
                     cwd=project_root,
                 ),
@@ -349,6 +354,7 @@ def main() -> None:
                         str(config_path),
                         "--submit-mode",
                         args.submit_mode_train,
+                        *([] if args.device is None else ["--device", args.device]),
                     ],
                     cwd=project_root,
                 ),
@@ -366,6 +372,7 @@ def main() -> None:
                         str(config_path),
                         "--submit-mode",
                         args.submit_mode_train,
+                        *([] if args.device is None else ["--device", args.device]),
                     ],
                     cwd=project_root,
                 ),
@@ -387,48 +394,51 @@ def main() -> None:
                 {"training_diagnostics_file": str(training_diagnostics_path)},
             )[1],
         },
-        "evaluate_uncertainty": {
-            "is_complete": uncertainty_complete,
+        "run_md_sampling_round_001": {
+            "is_complete": md_sampling_complete,
             "run": lambda: (
                 run_python_script(
                     [
                         sys.executable,
-                        str((project_root / "scripts" / "evaluate_uncertainty.py").resolve()),
+                        str((project_root / "scripts" / "run_md_sampling.py").resolve()),
                         "--config",
                         str(config_path),
-                        "--manifest",
-                        str(geometry_manifest_path),
+                        "--round-index",
+                        "1",
                         "--submit-mode",
-                        args.submit_mode_uq,
+                        args.submit_mode_md,
+                        *([] if args.md_num_initial_conditions is None else ["--num-initial-conditions", str(args.md_num_initial_conditions)]),
+                        *([] if args.md_maximum_propagation_time is None else ["--maximum-propagation-time", str(args.md_maximum_propagation_time)]),
+                        *([] if args.md_time_step is None else ["--time-step", str(args.md_time_step)]),
+                        *([] if args.md_save_interval_steps is None else ["--save-interval-steps", str(args.md_save_interval_steps)]),
+                        *([] if args.device is None else ["--device", args.device]),
                     ],
                     cwd=project_root,
                 ),
-                {"uncertainty_file": str(uncertainty_latest_path)},
+                {
+                    "md_sampling_status_file": str(round_001_md_status_path),
+                    "frame_manifest_file": str(round_001_md_frame_manifest_path),
+                },
             )[1],
         },
-        "select_round_001": {
+        "select_round_001_frames": {
             "is_complete": selection_complete,
             "run": lambda: (
                 run_python_script(
                     [
                         sys.executable,
-                        str((project_root / "scripts" / "active_learning_loop.py").resolve()),
+                        str((project_root / "scripts" / "select_md_frames.py").resolve()),
                         "--config",
                         str(config_path),
-                        "--manifest",
-                        str(geometry_manifest_path),
-                        "--mode",
-                        "next-round",
-                        "--uncertainty",
-                        str(uncertainty_latest_path),
                         "--round-index",
                         "1",
                     ],
                     cwd=project_root,
                 ),
                 {
-                    "selection_summary_file": str(round_selection_summary_path),
-                    "selection_manifest_file": str(round_selected_manifest_path),
+                    "selection_summary_file": str(round_001_selection_summary_path),
+                    "selection_manifest_file": str(round_001_selection_manifest_path),
+                    "active_learning_round_history_file": str(active_learning_history_path),
                 },
             )[1],
         },
@@ -446,7 +456,7 @@ def main() -> None:
         try:
             if args.resume and not args.force and not must_rerun_remaining and stage_def["is_complete"]():
                 stage_record["status"] = "skipped"
-                stage_record["reason"] = "检测到标准产物已存在，且当前启用了 resume。"
+                stage_record["reason"] = "Existing outputs already satisfy this stage."
             else:
                 outputs = stage_def["run"]()
                 stage_record["status"] = "completed"
@@ -469,7 +479,7 @@ def main() -> None:
     pipeline_summary["success"] = True
     pipeline_summary["finished_at"] = timestamp_string()
     persist_summary()
-    print(f"第一轮主线流程完成：{pipeline_run_summary_path}")
+    print(f"First-round TS + bidirectional MD pipeline completed: {pipeline_run_summary_path}")
 
 
 if __name__ == "__main__":
