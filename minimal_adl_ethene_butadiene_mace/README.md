@@ -14,7 +14,7 @@ Backend summary:
 ```bash
 python scripts/check_environment.py --config configs/base.yaml --strict
 python scripts/check_environment.py --config configs/base.yaml --strict --test-mlatom-xtb
-python scripts/run_first_round_pipeline.py \
+python scripts/active_learning_loop.py \
   --config configs/base.yaml \
   --submit-mode-labels pbs \
   --submit-mode-train pbs \
@@ -25,6 +25,8 @@ python scripts/run_first_round_pipeline.py \
 
 - The authoritative seed file is `geometries/ture_seed/TS.log`.
 - MACE stays CPU-only in this repository.
+- `active_learning_loop.py` is now the recommended one-command multi-round experiment entry.
+- By default, all returned uncertain points are kept for relabeling unless you explicitly pass `--max-new-points`.
 - Use `environment.cpu.yml` and `scripts/install_mace_deps_stepwise.sh` for the training environment.
 - Use a separate analysis environment for notebooks and plotting.
 

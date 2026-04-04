@@ -19,7 +19,12 @@ def main() -> None:
     parser.add_argument("--config", required=True, help="Path to the YAML config file.")
     parser.add_argument("--round-index", type=int, required=True, help="Round index to select from.")
     parser.add_argument("--frame-manifest", default=None, help="Override the MD frame manifest path.")
-    parser.add_argument("--max-new-points", type=int, default=None, help="Override the max number of new points.")
+    parser.add_argument(
+        "--max-new-points",
+        type=int,
+        default=None,
+        help="Optional explicit cap for new points. Omit to keep all returned uncertain points.",
+    )
     parser.add_argument(
         "--dedup-rmsd-threshold",
         type=float,

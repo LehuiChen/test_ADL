@@ -14,7 +14,7 @@ All three projects now share the same non-model logic:
 4. Build a delta dataset and train the backend-specific model
 5. Run bidirectional short NVE MD from TS initial conditions
 6. Stop each trajectory at the first uncertain point
-7. Deduplicate and relabel only those selected uncertain points for the next round
+7. Deduplicate and relabel the returned uncertain points for the next round, without a default per-round hard cap
 
 ## Backend Matrix
 
@@ -63,3 +63,13 @@ git clone https://github.com/LehuiChen/test_ADL.git /share/home/Chenlehui/work/t
 ```
 
 Then enter the matching project directory and activate the matching conda environment before running `scripts/check_environment.py`.
+
+For day-to-day experiments, the recommended entrypoint inside each project is:
+
+```bash
+python scripts/active_learning_loop.py \
+  --config configs/base.yaml \
+  --submit-mode-labels pbs \
+  --submit-mode-train pbs \
+  --submit-mode-md pbs
+```

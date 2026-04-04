@@ -505,7 +505,12 @@ def select_md_frames(
     payload = read_json(frame_manifest_path)
     frames = payload.get("samples") or payload.get("frames", [])
     threshold = payload.get("uq_threshold")
-    selection_limit = int(max_new_points if max_new_points is not None else config["active_learning"].get("max_new_points_per_round", 100))
+    selection_limit_raw = max_new_points if max_new_points is not None else config["active_learning"].get("max_new_points_per_round")
+    selection_limit = None
+    if selection_limit_raw is not None:
+        selection_limit_value = int(selection_limit_raw)
+        if selection_limit_value > 0:
+            selection_limit = selection_limit_value
     rmsd_threshold = float(
         dedup_rmsd_threshold if dedup_rmsd_threshold is not None else config.get("sampling", {}).get("dedup_rmsd_threshold", 0.05)
     )
@@ -517,7 +522,7 @@ def select_md_frames(
         reverse=True,
     )
     if threshold is None:
-        uncertain_frames = sorted_frames[:selection_limit]
+        uncertain_frames = sorted_frames
     else:
         uncertain_frames = [item for item in sorted_frames if item.get("uncertainty") is not None and float(item["uncertainty"]) > float(threshold)]
 
@@ -531,7 +536,7 @@ def select_md_frames(
     manifest_entries: list[dict[str, Any]] = []
 
     for frame in uncertain_frames:
-        if len(selected_frames) >= selection_limit:
+        if selection_limit is not None and len(selected_frames) >= selection_limit:
             break
 
         coordinates = np.asarray(frame["coordinates"], dtype=float)
@@ -583,6 +588,7 @@ def select_md_frames(
         "num_uncertain_frames": len(uncertain_frames),
         "num_uncertain_samples": len(uncertain_frames),
         "num_uncertain_trajectories": len(uncertain_frames),
+        "selection_limit": selection_limit,
         "selected_count": len(selected_frames),
         "selected_sample_ids": [entry["sample_id"] for entry in manifest_entries],
         "uncertain_ratio": len(uncertain_frames) / total,

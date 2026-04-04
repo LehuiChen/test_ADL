@@ -31,6 +31,32 @@ def _resolve_labels_root(config: dict[str, Any], method_key: str) -> Path:
     return ensure_dir(Path(config["paths"][labels_key]))
 
 
+def _validate_worker_status_files(status_files: list[Path], *, method_key: str) -> None:
+    failures: list[str] = []
+    for status_file in status_files:
+        try:
+            payload = read_json(status_file)
+        except Exception as exc:  # noqa: BLE001
+            failures.append(f"{status_file}: unreadable status file ({type(exc).__name__}: {exc})")
+            continue
+        if bool(payload.get("success", False)):
+            continue
+
+        worker_name = payload.get("worker_name", status_file.parent.name)
+        num_failed = payload.get("num_failed")
+        if isinstance(num_failed, int):
+            failures.append(f"{worker_name}: {num_failed} sample(s) failed")
+            continue
+
+        error_type = payload.get("error_type", "UnknownError")
+        error_message = payload.get("error_message", "worker batch reported failure without an error_message")
+        failures.append(f"{worker_name}: {error_type}: {error_message}")
+
+    if failures:
+        joined = "; ".join(failures)
+        raise RuntimeError(f"{method_key} label worker batches reported failures: {joined}")
+
+
 def _build_single_label_command(
     *,
     python_command: str,
@@ -376,5 +402,6 @@ def launch_label_jobs(
             timeout_seconds=int(cluster_config.get("poll_timeout_seconds", 86400)),
             poll_interval_seconds=int(cluster_config.get("poll_interval_seconds", 30)),
         )
+        _validate_worker_status_files(status_files, method_key=method_key)
 
     return submitted_jobs

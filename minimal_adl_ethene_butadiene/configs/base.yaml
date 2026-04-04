@@ -70,7 +70,7 @@ training:
 active_learning:
   max_rounds: 10
   min_new_points: 5
-  max_new_points_per_round: 100
+  max_new_points_per_round: null
   uncertainty_threshold: null
   threshold_metric: m+3mad
   convergence_ratio: 0.05
