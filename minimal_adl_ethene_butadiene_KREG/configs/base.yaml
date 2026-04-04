@@ -1,0 +1,176 @@
+﻿project:
+  name: minimal_adl_ethene_butadiene_kreg
+  description: "ethene + 1,3-butadiene 的 TS + 双向 MD active delta-learning（KREG 版）"
+
+paths:
+  ts_frequency_source: geometries/ture_seed/TS.log
+  ts_seed_json: geometries/ture_seed/ts_seed.json
+  ts_seed_xyz: geometries/ture_seed/ts_seed.xyz
+  ts_seed_summary_file: results/ts_seed_summary.json
+  cumulative_labeled_manifest: data/processed/cumulative_labeled_manifest.json
+  delta_dataset_npz: data/processed/delta_dataset.npz
+  delta_dataset_metadata: data/processed/delta_dataset_metadata.json
+  xtb_labels_dir: labels/xtb
+  gaussian_labels_dir: labels/gaussian
+  models_dir: models
+  logs_dir: logs
+  results_dir: results
+  training_split_file: models/training_split.json
+  train_main_predictions_file: models/train_main_predictions.csv
+  train_aux_predictions_file: models/train_aux_predictions.csv
+  train_main_history_file: models/train_main_history.json
+  train_aux_history_file: models/train_aux_history.json
+  training_diagnostics_file: models/training_diagnostics.json
+  check_environment_report: results/check_environment_latest.json
+  pipeline_run_summary: results/pipeline_run_summary.json
+  active_learning_round_history_file: results/active_learning_round_history.json
+
+methods:
+  baseline:
+    label: baseline
+    output_subdir: xtb
+    method: GFN2-xTB
+    program: null
+    nthreads: 4
+    save_files_in_current_directory: false
+  target:
+    label: target
+    output_subdir: gaussian
+    method: wB97X-D/6-31G*
+    program: Gaussian
+    nthreads: 8
+    save_files_in_current_directory: false
+
+sampling:
+  initial_condition_sampler: harmonic-quantum-boltzmann
+  initial_temperature: 298
+  use_hessian: false
+  reaction_coordinate_momentum: true
+  initial_conditions_initial: 200
+  initial_conditions_per_round: 100
+  dedup_rmsd_threshold: 0.05
+  random_seed: 20260324
+  md:
+    trajectory_mode: bidirectional
+    maximum_propagation_time: 150
+    time_step: 0.5
+    save_interval_steps: 5
+    ensemble: NVE
+
+training:
+  ml_model_type: KREG
+  device: null
+  validation_set_fraction: 0.10
+  model_name: delta_bundle
+  main_model_stem: delta_main_model
+  aux_model_stem: delta_aux_model
+  summary_filename: training_summary.json
+  state_filename: training_state.json
+
+active_learning:
+  max_rounds: 10
+  min_new_points: 5
+  max_new_points_per_round: 100
+  uncertainty_threshold: null
+  threshold_metric: m+3mad
+  convergence_ratio: 0.05
+
+cluster:
+  scheduler: PBS
+  submit_command: qsub
+  queue: default
+  nodes: 1
+  ppn: 4
+  walltime: 12:00:00
+  conda_init: source ~/.bashrc
+  conda_env: ADL_KREG
+  python_command: python
+  poll_interval_seconds: 30
+  poll_timeout_seconds: 86400
+  resources_by_method:
+    baseline:
+      submission_strategy: worker
+      queue: default
+      nodes: 1
+      ppn: 16
+      walltime: 01:00:00
+      worker_count: 8
+      local_parallelism: 4
+      extra_pbs_lines: []
+    target:
+      submission_strategy: worker
+      queue: default
+      nodes: 1
+      ppn: 16
+      walltime: 24:00:00
+      worker_count: 8
+      local_parallelism: 2
+      extra_pbs_lines: []
+    training:
+      queue: default
+      nodes: 1
+      ppn: 16
+      walltime: 12:00:00
+      extra_pbs_lines: []
+    uncertainty:
+      queue: default
+      nodes: 1
+      ppn: 16
+      walltime: 04:00:00
+      extra_pbs_lines: []
+    md_sampling:
+      queue: default
+      nodes: 1
+      ppn: 16
+      walltime: 06:00:00
+      extra_pbs_lines: []
+  env_blocks:
+    baseline:
+      - source ~/.bashrc
+      - conda activate ADL_KREG
+      - export PATH=/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
+      - 'echo "Python path: $(which python)"'
+      - 'echo "xTB path: $(which xtb)"'
+    target:
+      - export PERLLIB="${PERLLIB-}"
+      - set +e
+      - set +u
+      - set +o pipefail
+      - source /share/apps/gaussian/g16-env.sh
+      - g16_env_rc=$?
+      - source /share/env/ips2018u1.env
+      - ips_env_rc=$?
+      - set -e
+      - set -u
+      - set -o pipefail
+      - source ~/.bashrc
+      - conda activate ADL_KREG
+      - export PATH=/share/apps/gaussian/g16:/share/pubbin:/share/home/Chenlehui/bin:/share/apps/xtb-6.7.1/xtb-dist/bin:$PATH
+      - export dftd4bin=/share/apps/dftd4-3.5.0/bin/dftd4
+      - export GAUSS_SCRDIR=/tmp/${USER:-${LOGNAME:-unknown_user}}/${PBS_JOBID:-unknown_job}
+      - mkdir -p "$GAUSS_SCRDIR"
+      - 'echo "g16-env.sh return code: ${g16_env_rc:-0}"'
+      - 'echo "ips2018u1.env return code: ${ips_env_rc:-0}"'
+      - 'command -v g16 >/dev/null || { echo "g16 not found after sourcing Gaussian env" >&2; exit 1; }'
+      - '[ -n "${GAUSS_EXEDIR:-}" ] || { echo "GAUSS_EXEDIR is not set after sourcing Gaussian env" >&2; exit 1; }'
+      - 'echo "Python path: $(which python)"'
+      - 'echo "xTB path: $(which xtb)"'
+      - 'echo "GAUSS_SCRDIR: $GAUSS_SCRDIR"'
+    training:
+      - source ~/.bashrc
+      - conda activate ADL_KREG
+      - 'echo "Python path: $(which python)"'
+      - 'echo "Training backend: KREG"'
+    uncertainty:
+      - source ~/.bashrc
+      - conda activate ADL_KREG
+      - 'echo "Python path: $(which python)"'
+      - 'echo "UQ backend: KREG"'
+    md_sampling:
+      - source ~/.bashrc
+      - conda activate ADL_KREG
+      - 'echo "Python path: $(which python)"'
+      - 'echo "MD sampling backend: KREG"'
+  cleanup_blocks:
+    target:
+      - if [ -n "${GAUSS_SCRDIR:-}" ] && [ "$GAUSS_SCRDIR" != "/" ] && [ "$GAUSS_SCRDIR" != "/tmp" ] && [ "$GAUSS_SCRDIR" != "/tmp/" ] && [ -d "$GAUSS_SCRDIR" ]; then rm -rf "$GAUSS_SCRDIR"; fi

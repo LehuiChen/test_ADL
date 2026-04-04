@@ -64,5 +64,22 @@ Thumbs.db
 /minimal_adl_ethene_butadiene_nequip/results/*
 !/minimal_adl_ethene_butadiene_nequip/results/.gitkeep
 
+# KREG 骞跺垪宸ョ▼杩愯浜х墿
+/minimal_adl_ethene_butadiene_KREG/data/raw/geometries/
+/minimal_adl_ethene_butadiene_KREG/data/raw/geometry_pool_manifest.json
+/minimal_adl_ethene_butadiene_KREG/data/raw/initial_selection_manifest.json
+/minimal_adl_ethene_butadiene_KREG/data/processed/*.npz
+/minimal_adl_ethene_butadiene_KREG/data/processed/*.json
+/minimal_adl_ethene_butadiene_KREG/labels/xtb/*
+!/minimal_adl_ethene_butadiene_KREG/labels/xtb/.gitkeep
+/minimal_adl_ethene_butadiene_KREG/labels/gaussian/*
+!/minimal_adl_ethene_butadiene_KREG/labels/gaussian/.gitkeep
+/minimal_adl_ethene_butadiene_KREG/models/*
+!/minimal_adl_ethene_butadiene_KREG/models/.gitkeep
+/minimal_adl_ethene_butadiene_KREG/logs/*
+!/minimal_adl_ethene_butadiene_KREG/logs/.gitkeep
+/minimal_adl_ethene_butadiene_KREG/results/*
+!/minimal_adl_ethene_butadiene_KREG/results/.gitkeep
+
 # Temporary workspace
 /tmp/
