@@ -10,10 +10,26 @@ from .io_utils import ensure_dir, read_json, write_json
 
 SYMBOL_TO_ATOMIC_NUMBER = {
     "H": 1,
+    "He": 2,
+    "Li": 3,
+    "Be": 4,
+    "B": 5,
     "C": 6,
     "N": 7,
     "O": 8,
+    "F": 9,
+    "Ne": 10,
+    "Na": 11,
+    "Mg": 12,
+    "Al": 13,
+    "Si": 14,
+    "P": 15,
+    "S": 16,
+    "Cl": 17,
+    "Ar": 18,
 }
+
+ATOMIC_NUMBER_TO_SYMBOL = {value: key for key, value in SYMBOL_TO_ATOMIC_NUMBER.items()}
 
 
 @dataclass
@@ -79,7 +95,21 @@ def _load_json(path: Path) -> GeometryRecord:
     if "atoms" not in payload:
         raise ValueError(f"JSON 几何文件不包含 atoms 字段：{path}")
 
-    symbols = [atom["element_symbol"] for atom in payload["atoms"]]
+    symbols: list[str] = []
+    for atom in payload["atoms"]:
+        if atom.get("element_symbol"):
+            symbols.append(str(atom["element_symbol"]))
+            continue
+
+        atomic_number = atom.get("atomic_number", atom.get("nuclear_charge"))
+        if atomic_number is None:
+            raise KeyError("JSON atom is missing both element_symbol and atomic_number/nuclear_charge.")
+
+        atomic_number = int(atomic_number)
+        symbol = ATOMIC_NUMBER_TO_SYMBOL.get(atomic_number)
+        if symbol is None:
+            raise KeyError(f"Unsupported atomic number in geometry JSON: {atomic_number}")
+        symbols.append(symbol)
     coords = [atom["xyz_coordinates"] for atom in payload["atoms"]]
 
     return GeometryRecord(
