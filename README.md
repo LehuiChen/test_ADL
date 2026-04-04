@@ -73,3 +73,5 @@ python scripts/active_learning_loop.py \
   --submit-mode-train pbs \
   --submit-mode-md pbs
 ```
+
+The final experiment overview is written to each project's `results/active_learning_experiment_summary.json`.

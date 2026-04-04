@@ -82,6 +82,7 @@ def main() -> None:
     config_path = Path(config["config_path"]).resolve()
     results_dir = Path(config["paths"]["results_dir"]).resolve()
     experiment_summary_path = results_dir / "active_learning_experiment_summary.json"
+    cumulative_summary_path = results_dir / "cumulative_manifest_summary.json"
     max_rounds = int(args.max_rounds or config.get("active_learning", {}).get("max_rounds", 10))
 
     summary: dict[str, Any] = {
@@ -95,6 +96,9 @@ def main() -> None:
         "submit_mode_md": args.submit_mode_md,
         "device_override": args.device,
         "selection_cap_override": args.max_new_points,
+        "latest_round_index": None,
+        "total_completed_rounds": 0,
+        "stop_reason": None,
         "rounds": [],
         "success": False,
     }
@@ -207,6 +211,7 @@ def main() -> None:
                 ],
                 cwd=project_root,
             )
+            cumulative_summary = safe_read_json(cumulative_summary_path)
             run_python_script(
                 [
                     sys.executable,
@@ -285,6 +290,8 @@ def main() -> None:
             next_summary_path = results_dir / f"round_{next_round_index:03d}_selection_summary.json"
             next_summary = safe_read_json(next_summary_path)
             round_record["status"] = "completed"
+            round_record["added_to_cumulative_count"] = cumulative_summary.get("added_count")
+            round_record["cumulative_total_count"] = cumulative_summary.get("total_count")
             round_record["next_round_index"] = next_round_index
             round_record["next_round_selection_summary_file"] = str(next_summary_path.resolve())
             round_record["next_round_selected_count"] = next_summary.get("selected_count")
@@ -293,7 +300,12 @@ def main() -> None:
             summary["rounds"].append(round_record)
             persist_summary()
 
+        final_round_index, _ = latest_selection_summary(results_dir)
         summary["success"] = True
+        summary["latest_round_index"] = final_round_index
+        summary["total_completed_rounds"] = len([item for item in summary["rounds"] if item.get("round_index") is not None])
+        if summary["rounds"]:
+            summary["stop_reason"] = summary["rounds"][-1].get("reason", "completed")
         summary["finished_at"] = timestamp_string()
         persist_summary()
         print(f"Active-learning experiment completed: {experiment_summary_path}")

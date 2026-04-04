@@ -86,14 +86,14 @@ cluster:
   conda_env: ADL_env
   python_command: python
   poll_interval_seconds: 30
-  poll_timeout_seconds: 86400
+  poll_timeout_seconds: 1296000
   resources_by_method:
     baseline:
       submission_strategy: worker
       queue: default
       nodes: 1
       ppn: 16
-      walltime: 01:00:00
+      walltime: 360:00:00
       worker_count: 8
       local_parallelism: 4
       extra_pbs_lines: []
@@ -102,7 +102,7 @@ cluster:
       queue: default
       nodes: 1
       ppn: 16
-      walltime: 24:00:00
+      walltime: 360:00:00
       worker_count: 8
       local_parallelism: 2
       extra_pbs_lines: []
