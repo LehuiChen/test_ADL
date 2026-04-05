@@ -99,12 +99,7 @@ class DeltaMLModel(ml.al_utils.ml_model):
         workdir = Path(al_info.get("working_directory", ".")).resolve()
         workdir.mkdir(parents=True, exist_ok=True)
         self.prepare_model_paths(workdir)
-
-        [subtraindb, valdb] = molecular_database.split(
-            number_of_splits=2,
-            fraction_of_points_in_splits=[1 - self.validation_set_fraction, self.validation_set_fraction],
-            sampling="random",
-        )
+        subtraindb, valdb = self._split_training_and_validation_sets(molecular_database)
 
         if train_main:
             self.main_model = self.initialize_model(
@@ -179,6 +174,34 @@ class DeltaMLModel(ml.al_utils.ml_model):
         write_json(workdir / summary_filename, summary)
         write_json(workdir / state_filename, state)
         return state
+
+    def _split_training_and_validation_sets(self, molecular_database):
+        """Split the database while keeping both train and validation non-empty."""
+
+        total_samples = len(molecular_database)
+        if total_samples < 2:
+            raise ValueError("At least 2 labeled samples are required before training can start.")
+
+        requested_val = int(round(total_samples * float(self.validation_set_fraction)))
+        requested_val = max(1, requested_val)
+        requested_val = min(requested_val, total_samples - 1)
+        train_fraction = (total_samples - requested_val) / total_samples
+        val_fraction = requested_val / total_samples
+
+        subtraindb, valdb = molecular_database.split(
+            number_of_splits=2,
+            fraction_of_points_in_splits=[train_fraction, val_fraction],
+            sampling="random",
+        )
+
+        if len(subtraindb) == 0 or len(valdb) == 0:
+            raise RuntimeError(
+                "Training/validation split produced an empty subset. "
+                f"total_samples={total_samples}, requested_val={requested_val}, "
+                f"actual_train={len(subtraindb)}, actual_val={len(valdb)}"
+            )
+
+        return subtraindb, valdb
 
     def predict(self, molecule=None, molecular_database=None, **kwargs) -> None:  # noqa: ARG002
         """对一个分子或分子数据库做预测，并计算不确定性。"""
