@@ -78,9 +78,9 @@ active_learning:
 cluster:
   scheduler: PBS
   submit_command: qsub
-  queue: default
+  queue: N4
   nodes: 1
-  ppn: 16
+  ppn: 24
   walltime: 360:00:00
   conda_init: source ~/.bashrc
   conda_env: ADL_MACE
@@ -90,38 +90,38 @@ cluster:
   resources_by_method:
     baseline:
       submission_strategy: worker
-      queue: default
+      queue: N4
       nodes: 1
-      ppn: 16
+      ppn: 24
       walltime: 360:00:00
-      worker_count: 8
-      local_parallelism: 4
+      worker_count: 4
+      local_parallelism: 6
       extra_pbs_lines: []
     target:
       submission_strategy: worker
-      queue: default
+      queue: N4
       nodes: 1
-      ppn: 16
+      ppn: 24
       walltime: 360:00:00
-      worker_count: 8
-      local_parallelism: 2
+      worker_count: 4
+      local_parallelism: 3
       extra_pbs_lines: []
     training:
-      queue: default
+      queue: N4
       nodes: 1
-      ppn: 16
+      ppn: 24
       walltime: 360:00:00
       extra_pbs_lines: []
     uncertainty:
-      queue: default
+      queue: N4
       nodes: 1
-      ppn: 16
+      ppn: 24
       walltime: 360:00:00
       extra_pbs_lines: []
     md_sampling:
-      queue: default
+      queue: N4
       nodes: 1
-      ppn: 16
+      ppn: 24
       walltime: 360:00:00
       extra_pbs_lines: []
   env_blocks:

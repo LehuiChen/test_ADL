@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from minimal_adl.config import load_config
-from minimal_adl.geometry import load_manifest
+from minimal_adl.geometry import load_manifest, write_manifest
 from minimal_adl.io_utils import read_json, timestamp_string, write_json
 
 
@@ -53,6 +53,18 @@ def manifest_count(path: Path) -> int:
     return len(load_manifest(path))
 
 
+def write_filtered_manifest(manifest_path: Path, sample_ids: list[str], output_path: Path) -> Path:
+    selected_ids = {str(sample_id) for sample_id in sample_ids}
+    filtered_entries = [
+        dict(entry)
+        for entry in load_manifest(manifest_path)
+        if str(entry["sample_id"]) in selected_ids
+    ]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    write_manifest(filtered_entries, output_path)
+    return output_path
+
+
 def label_success(label_file: Path) -> bool:
     payload = safe_read_json(label_file)
     return bool(payload.get("success", False))
@@ -85,6 +97,7 @@ def ensure_manifest_fully_labeled(
     max_retries: int,
 ) -> dict[str, Any]:
     attempts: list[dict[str, Any]] = []
+    retry_manifest_root = manifest_path.resolve().parent / "_retry_manifests" / manifest_path.stem
 
     for attempt_index in range(max_retries + 1):
         baseline_missing, target_missing = collect_missing_labels(config, manifest_path)
@@ -108,6 +121,11 @@ def ensure_manifest_fully_labeled(
             break
 
         if baseline_missing:
+            baseline_retry_manifest = write_filtered_manifest(
+                manifest_path,
+                baseline_missing,
+                retry_manifest_root / f"baseline_attempt_{attempt_index:02d}.json",
+            )
             try:
                 run_python_script(
                     [
@@ -116,7 +134,7 @@ def ensure_manifest_fully_labeled(
                         "--config",
                         str(config_path),
                         "--manifest",
-                        str(manifest_path.resolve()),
+                        str(baseline_retry_manifest.resolve()),
                         "--submit-mode",
                         submit_mode_labels,
                         *([] if not force else ["--force"]),
@@ -127,6 +145,11 @@ def ensure_manifest_fully_labeled(
                 pass
 
         if target_missing:
+            target_retry_manifest = write_filtered_manifest(
+                manifest_path,
+                target_missing,
+                retry_manifest_root / f"target_attempt_{attempt_index:02d}.json",
+            )
             try:
                 run_python_script(
                     [
@@ -135,7 +158,7 @@ def ensure_manifest_fully_labeled(
                         "--config",
                         str(config_path),
                         "--manifest",
-                        str(manifest_path.resolve()),
+                        str(target_retry_manifest.resolve()),
                         "--submit-mode",
                         submit_mode_labels,
                         *([] if not force else ["--force"]),

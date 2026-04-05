@@ -80,8 +80,8 @@ cluster:
   submit_command: qsub
   queue: default
   nodes: 1
-  ppn: 4
-  walltime: 12:00:00
+  ppn: 16
+  walltime: 360:00:00
   conda_init: source ~/.bashrc
   conda_env: ADL_env
   python_command: python
@@ -94,7 +94,7 @@ cluster:
       nodes: 1
       ppn: 16
       walltime: 360:00:00
-      worker_count: 8
+      worker_count: 4
       local_parallelism: 4
       extra_pbs_lines: []
     target:
@@ -103,26 +103,26 @@ cluster:
       nodes: 1
       ppn: 16
       walltime: 360:00:00
-      worker_count: 8
+      worker_count: 4
       local_parallelism: 2
       extra_pbs_lines: []
     training:
       queue: GPU
       nodes: 1
       ppn: 8
-      walltime: 12:00:00
+      walltime: 360:00:00
       extra_pbs_lines: []
     uncertainty:
       queue: GPU
       nodes: 1
       ppn: 4
-      walltime: 04:00:00
+      walltime: 360:00:00
       extra_pbs_lines: []
     md_sampling:
       queue: GPU
       nodes: 1
       ppn: 4
-      walltime: 06:00:00
+      walltime: 360:00:00
       extra_pbs_lines: []
   env_blocks:
     baseline:

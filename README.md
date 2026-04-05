@@ -18,11 +18,11 @@ All three projects now share the same non-model logic:
 
 ## Backend Matrix
 
-| Backend | Project Directory | Training Env | Device |
-| --- | --- | --- | --- |
-| ANI | `minimal_adl_ethene_butadiene` | `ADL_env` | GPU |
-| MACE | `minimal_adl_ethene_butadiene_mace` | `ADL_MACE` | CPU only |
-| KREG | `minimal_adl_ethene_butadiene_KREG` | `ADL_KREG` | CPU only |
+| Backend | Project Directory | Training Env | Device | Default Queue Strategy |
+| --- | --- | --- | --- | --- |
+| ANI | `minimal_adl_ethene_butadiene` | `ADL_env` | GPU | CPU labels on `default` (16 cores), training / MD on `GPU` |
+| MACE | `minimal_adl_ethene_butadiene_mace` | `ADL_MACE` | CPU only | All stages on `N4` (24 cores) |
+| KREG | `minimal_adl_ethene_butadiene_KREG` | `ADL_KREG` | CPU only | All stages on `N4` (24 cores) |
 
 ## Shared Conventions
 
@@ -31,6 +31,7 @@ All three projects now share the same non-model logic:
 - Old static seed folders such as `geometries/seed/` have been retired.
 - NequIP has been removed from this repository.
 - Training environments and notebook / plotting environments should stay separate.
+- Automatic label retries only resubmit the samples whose labels are still missing, instead of resubmitting the full selected manifest.
 
 ## Where To Start
 
