@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from minimal_adl.config import load_config
+from minimal_adl.gpu_monitor import GPUMonitor, is_kreg_cuda_mode
 from minimal_adl.io_utils import write_json
 from minimal_adl.pbs import launch_python_job
 from minimal_adl.training import train_delta_bundle
@@ -58,8 +59,20 @@ def main() -> None:
         print(f"辅助模型训练任务已提交：{job_info}")
         return
 
+    kreg_cuda_mode = is_kreg_cuda_mode(config)
+    monitor = GPUMonitor(
+        enabled=kreg_cuda_mode,
+        poll_interval_seconds=float(config.get("training", {}).get("gpu_monitor_poll_interval_seconds", 2.0)),
+    )
+
     try:
+        monitor.start()
         state = train_delta_bundle(config=config, train_main=False, train_aux=True)
+        gpu_payload = monitor.stop()
+        if kreg_cuda_mode and not bool(gpu_payload.get("gpu_observed", False)):
+            raise RuntimeError(
+                "KREG is configured with training.device=cuda, but no GPU usage was observed during training."
+            )
         summary_path = Path(config["paths"]["models_dir"]) / config["training"].get("summary_filename", "training_summary.json")
         state_path = Path(config["paths"]["models_dir"]) / config["training"].get("state_filename", "training_state.json")
         write_json(
@@ -68,6 +81,7 @@ def main() -> None:
                 "success": True,
                 "stage": "train_aux",
                 "device": config["training"]["device"],
+                "kreg_cuda_mode": kreg_cuda_mode,
                 "main_model_file": state.get("main_model_file"),
                 "aux_model_file": state.get("aux_model_file"),
                 "training_summary_file": str(summary_path.resolve()),
@@ -77,19 +91,23 @@ def main() -> None:
                 "train_aux_predictions_file": state.get("train_aux_predictions_file"),
                 "train_main_history_file": state.get("train_main_history_file"),
                 "train_aux_history_file": state.get("train_aux_history_file"),
+                **gpu_payload,
             },
         )
         print(f"辅助模型训练完成，输出文件：{state.get('aux_model_file')}")
     except Exception as exc:  # noqa: BLE001
+        gpu_payload = monitor.stop()
         write_json(
             status_path,
             {
                 "success": False,
                 "stage": "train_aux",
                 "device": config["training"]["device"],
+                "kreg_cuda_mode": kreg_cuda_mode,
                 "error_type": type(exc).__name__,
                 "error_message": str(exc),
                 "traceback": traceback.format_exc(),
+                **gpu_payload,
             },
         )
         raise

@@ -6,7 +6,8 @@ Backend summary:
 
 - backend: `KREG`
 - training env: `ADL_KREG`
-- training / MD device: CPU only
+- training device: `cuda` (GPU queue)
+- label device: CPU (`xTB` + `Gaussian`)
 - workflow: `TS seed + bidirectional MD + stop on first uncertain point`
 
 ## Quick Start
@@ -24,7 +25,8 @@ python scripts/active_learning_loop.py \
 ## Important Notes
 
 - The authoritative seed file is `geometries/ture_seed/TS.log`.
-- KREG stays CPU-only in this repository.
+- KREG labels remain CPU tasks, while training / uncertainty / MD sampling jobs are submitted to the GPU queue.
+- KREG with `training.device=cuda` must show real GPU usage in training status files, otherwise training is marked failed.
 - `active_learning_loop.py` is now the recommended one-command multi-round experiment entry.
 - By default, all returned uncertain points are kept for relabeling unless you explicitly pass `--max-new-points`.
 - The KREG backend comes from MLatom and does not need a separate `torchani` or `mace` package.

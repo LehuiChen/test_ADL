@@ -119,6 +119,14 @@ def detect_model_type(config: dict[str, Any]) -> str:
     return str(config.get("training", {}).get("ml_model_type", "ANI")).strip() or "ANI"
 
 
+def detect_training_device(config: dict[str, Any]) -> str:
+    return str(config.get("training", {}).get("device", "")).strip().lower()
+
+
+def is_kreg_cuda_mode(*, model_type: str, training_device: str) -> bool:
+    return model_type.casefold() == "kreg" and training_device.startswith("cuda")
+
+
 def model_dependency_requirements(model_type: str) -> tuple[str, list[str], bool]:
     model_type_lower = model_type.casefold()
     if model_type_lower == "ani":
@@ -186,8 +194,11 @@ def main() -> None:
 
     config = load_config(args.config)
     model_type = detect_model_type(config)
+    training_device = detect_training_device(config)
+    kreg_cuda_mode = is_kreg_cuda_mode(model_type=model_type, training_device=training_device)
     model_check_key, model_candidates, require_torch = model_dependency_requirements(model_type)
     target_uses_gaussian = str(config.get("methods", {}).get("target", {}).get("program", "")).lower() == "gaussian"
+    expect_gpu = args.expect_gpu or kreg_cuda_mode
 
     checks: dict[str, Any] = {
         "yaml": check_python_module("yaml"),
@@ -198,10 +209,11 @@ def main() -> None:
         "pyh5md": check_python_module("pyh5md"),
         "joblib": check_python_module("joblib"),
         "sklearn": check_python_module("sklearn"),
-        "torch": check_torch_status(expect_gpu=args.expect_gpu, model_type=model_type),
+        "torch": check_torch_status(expect_gpu=expect_gpu, model_type=model_type),
         "xtb": check_command("xtb", ["--version"]),
         "g16": check_command("g16", None),
         "Gau_Mlatom.py": check_command("Gau_Mlatom.py", None),
+        "nvidia-smi": check_command("nvidia-smi", ["--query-gpu=name,memory.total", "--format=csv,noheader"]),
     }
 
     if model_candidates:
@@ -220,10 +232,35 @@ def main() -> None:
             "error_message": f"Unsupported ml_model_type: {model_type}. Expected ANI, MACE, or KREG.",
         }
 
+    if kreg_cuda_mode:
+        torch_payload = checks.get("torch", {})
+        cuda_available = bool(torch_payload.get("ok", False)) and bool(torch_payload.get("cuda_available", False))
+        nvidia_ok = bool(checks.get("nvidia-smi", {}).get("ok", False))
+        checks["kreg_cuda_runtime"] = {
+            "ok": cuda_available and nvidia_ok,
+            "cuda_available": cuda_available,
+            "nvidia_smi_found": nvidia_ok,
+            "training_device": training_device,
+            "message": (
+                "KREG cuda mode requires both torch.cuda availability and `nvidia-smi` command."
+                if not (cuda_available and nvidia_ok)
+                else "KREG cuda runtime checks passed."
+            ),
+        }
+    else:
+        checks["kreg_cuda_runtime"] = {
+            "ok": True,
+            "enabled": False,
+            "training_device": training_device,
+            "message": "KREG cuda runtime checks are disabled because training.device is not cuda.",
+        }
+
     report: dict[str, Any] = {
         "config_file": str(Path(config["config_path"]).resolve()),
         "python": sys.executable,
         "ml_model_type": model_type,
+        "training_device": training_device,
+        "kreg_cuda_mode": kreg_cuda_mode,
         "checks": checks,
     }
 
@@ -237,8 +274,10 @@ def main() -> None:
 
     if args.strict:
         required_keys = ["yaml", "mlatom", "pyh5md", "joblib", "sklearn", "xtb", model_check_key]
-        if require_torch:
+        if require_torch or kreg_cuda_mode:
             required_keys.append("torch")
+        if kreg_cuda_mode:
+            required_keys.extend(["nvidia-smi", "kreg_cuda_runtime"])
         if target_uses_gaussian:
             required_keys.append("g16")
 

@@ -59,7 +59,7 @@ sampling:
 
 training:
   ml_model_type: KREG
-  device: null
+  device: cuda
   validation_set_fraction: 0.10
   model_name: delta_bundle
   main_model_stem: delta_main_model
@@ -107,19 +107,19 @@ cluster:
       local_parallelism: 3
       extra_pbs_lines: []
     training:
-      queue: N4
+      queue: GPU
       nodes: 1
       ppn: 24
       walltime: 360:00:00
       extra_pbs_lines: []
     uncertainty:
-      queue: N4
+      queue: GPU
       nodes: 1
       ppn: 24
       walltime: 360:00:00
       extra_pbs_lines: []
     md_sampling:
-      queue: N4
+      queue: GPU
       nodes: 1
       ppn: 24
       walltime: 360:00:00
@@ -161,16 +161,22 @@ cluster:
       - conda activate ADL_KREG
       - 'echo "Python path: $(which python)"'
       - 'echo "Training backend: KREG"'
+      - 'echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<unset>}"'
+      - nvidia-smi || true
     uncertainty:
       - source ~/.bashrc
       - conda activate ADL_KREG
       - 'echo "Python path: $(which python)"'
       - 'echo "UQ backend: KREG"'
+      - 'echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<unset>}"'
+      - nvidia-smi || true
     md_sampling:
       - source ~/.bashrc
       - conda activate ADL_KREG
       - 'echo "Python path: $(which python)"'
       - 'echo "MD sampling backend: KREG"'
+      - 'echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<unset>}"'
+      - nvidia-smi || true
   cleanup_blocks:
     target:
       - if [ -n "${GAUSS_SCRDIR:-}" ] && [ "$GAUSS_SCRDIR" != "/" ] && [ "$GAUSS_SCRDIR" != "/tmp" ] && [ "$GAUSS_SCRDIR" != "/tmp/" ] && [ -d "$GAUSS_SCRDIR" ]; then rm -rf "$GAUSS_SCRDIR"; fi
