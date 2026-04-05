@@ -286,13 +286,11 @@ class DeltaMLModel(ml.al_utils.ml_model):
                 model.model_file = saved_path
                 model.kreg_api.save_model(model.model_file)
             elif ml_model_type.casefold() == "mace":
-                mace_hyperparameters = self._build_mace_batch_hyperparameters(subtraindb_copy, valdb_copy)
-                model.train(
-                    molecular_database=subtraindb_copy,
-                    validation_molecular_database=valdb_copy,
-                    property_to_learn="delta_energy",
-                    xyz_derivative_property_to_learn="delta_energy_gradients",
-                    hyperparameters=mace_hyperparameters,
+                self._train_mace_model(
+                    model=model,
+                    subtraindb=subtraindb_copy,
+                    valdb=valdb_copy,
+                    learning_grad=True,
                 )
             else:
                 raise ValueError(f"当前未实现的主模型类型：{ml_model_type}")
@@ -318,15 +316,72 @@ class DeltaMLModel(ml.al_utils.ml_model):
                 model.model_file = saved_path
                 model.kreg_api.save_model(model.model_file)
             elif ml_model_type.casefold() == "mace":
-                mace_hyperparameters = self._build_mace_batch_hyperparameters(subtraindb_copy, valdb_copy)
-                model.train(
-                    molecular_database=subtraindb_copy,
-                    validation_molecular_database=valdb_copy,
-                    property_to_learn="delta_energy",
-                    hyperparameters=mace_hyperparameters,
+                self._train_mace_model(
+                    model=model,
+                    subtraindb=subtraindb_copy,
+                    valdb=valdb_copy,
+                    learning_grad=False,
                 )
             else:
                 raise ValueError(f"当前未实现的辅助模型类型：{ml_model_type}")
+
+    def _train_mace_model(self, *, model, subtraindb, valdb, learning_grad: bool) -> None:
+        """Train MACE with defensive batch-size handling for tiny datasets."""
+
+        mace_hyperparameters = self._build_mace_batch_hyperparameters(subtraindb, valdb)
+        train_kwargs = {
+            "molecular_database": subtraindb,
+            "validation_molecular_database": valdb,
+            "property_to_learn": "delta_energy",
+        }
+        if learning_grad:
+            train_kwargs["xyz_derivative_property_to_learn"] = "delta_energy_gradients"
+
+        try:
+            self._call_mace_train(model=model, train_kwargs=train_kwargs, hyperparameters=mace_hyperparameters)
+        except RuntimeError as exc:
+            # Some MACE/MLatom combinations can still produce an empty dataloader;
+            # retry with the strict minimum batch sizes before giving up.
+            if "torch.cat(): expected a non-empty list of Tensors" not in str(exc):
+                raise
+            fallback_hyperparameters = {"batch_size": 1, "valid_batch_size": 1}
+            self._call_mace_train(model=model, train_kwargs=train_kwargs, hyperparameters=fallback_hyperparameters)
+
+    @staticmethod
+    def _call_mace_train(*, model, train_kwargs: dict[str, Any], hyperparameters: dict[str, int]) -> None:
+        """Call MACE training across slightly different MLatom signatures."""
+
+        try:
+            model.train(
+                **train_kwargs,
+                hyperparameters=hyperparameters,
+                batch_size=hyperparameters["batch_size"],
+                valid_batch_size=hyperparameters["valid_batch_size"],
+            )
+            return
+        except TypeError as exc:
+            message = str(exc)
+            if "unexpected keyword argument" not in message:
+                raise
+
+        # Fallback A: support versions that only accept hyperparameters.
+        try:
+            model.train(
+                **train_kwargs,
+                hyperparameters=hyperparameters,
+            )
+            return
+        except TypeError as exc:
+            message = str(exc)
+            if "unexpected keyword argument" not in message:
+                raise
+
+        # Fallback B: support versions that only accept direct batch args.
+        model.train(
+            **train_kwargs,
+            batch_size=hyperparameters["batch_size"],
+            valid_batch_size=hyperparameters["valid_batch_size"],
+        )
 
     @staticmethod
     def _build_mace_batch_hyperparameters(subtraindb, valdb) -> dict[str, int]:
