@@ -328,9 +328,10 @@ class DeltaMLModel(ml.al_utils.ml_model):
     def _train_mace_model(self, *, model, subtraindb, valdb, learning_grad: bool) -> None:
         """Train MACE with defensive batch-size handling for tiny datasets."""
 
-        mace_hyperparameters = self._build_mace_batch_hyperparameters(subtraindb, valdb)
+        effective_subtraindb = self._ensure_mace_min_train_size(subtraindb, minimum_train_size=10)
+        mace_hyperparameters = self._build_mace_batch_hyperparameters(effective_subtraindb, valdb)
         train_kwargs = {
-            "molecular_database": subtraindb,
+            "molecular_database": effective_subtraindb,
             "validation_molecular_database": valdb,
             "property_to_learn": "delta_energy",
         }
@@ -400,6 +401,22 @@ class DeltaMLModel(ml.al_utils.ml_model):
             "batch_size": min(10, train_size),
             "valid_batch_size": min(10, valid_size),
         }
+
+    @staticmethod
+    def _ensure_mace_min_train_size(subtraindb, *, minimum_train_size: int = 10):
+        """Expand tiny MACE train splits to avoid empty dataloaders with drop_last=True."""
+
+        train_size = len(subtraindb)
+        if train_size < 1:
+            raise RuntimeError("MACE training requires at least 1 training sample.")
+        if train_size >= minimum_train_size:
+            return subtraindb
+
+        expanded = subtraindb.copy()
+        # Duplicate existing structures only for model fitting stability in tiny-sample smoke tests.
+        while len(expanded) < minimum_train_size:
+            expanded = expanded + subtraindb.copy()
+        return expanded
 
     @staticmethod
     def _safe_float(value: Any) -> float | None:
