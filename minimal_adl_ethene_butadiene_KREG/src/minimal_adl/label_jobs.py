@@ -186,6 +186,8 @@ def _launch_per_sample_pbs_jobs(
     status_files: list[Path] = []
 
     for item in pending_entries:
+        if item["status_file"].exists():
+            item["status_file"].unlink()
         local_cmd = _build_single_label_command(
             python_command=python_command,
             script_path=script_path,
@@ -256,6 +258,9 @@ def _launch_worker_pbs_jobs(
         worker_dir = ensure_dir(jobs_root / f"worker_{worker_index:03d}")
         worker_manifest_path = worker_dir / "worker_manifest.json"
         worker_status_path = worker_dir / "batch_status.json"
+
+        if worker_status_path.exists():
+            worker_status_path.unlink()
 
         worker_manifest_entries = [dict(item["manifest_entry"]) for item in chunk]
         write_manifest(worker_manifest_entries, worker_manifest_path)
