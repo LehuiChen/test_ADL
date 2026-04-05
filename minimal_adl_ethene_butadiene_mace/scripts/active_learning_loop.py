@@ -189,7 +189,7 @@ def main() -> None:
     results_dir = Path(config["paths"]["results_dir"]).resolve()
     experiment_summary_path = results_dir / "active_learning_experiment_summary.json"
     cumulative_summary_path = results_dir / "cumulative_manifest_summary.json"
-    max_rounds = int(args.max_rounds or config.get("active_learning", {}).get("max_rounds", 10))
+    max_rounds = int(args.max_rounds or config.get("active_learning", {}).get("max_rounds", 20))
 
     summary: dict[str, Any] = {
         "generated_at": timestamp_string(),

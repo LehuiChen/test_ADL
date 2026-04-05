@@ -68,7 +68,7 @@ training:
   state_filename: training_state.json
 
 active_learning:
-  max_rounds: 10
+  max_rounds: 20
   min_new_points: 5
   max_new_points_per_round: null
   uncertainty_threshold: null
