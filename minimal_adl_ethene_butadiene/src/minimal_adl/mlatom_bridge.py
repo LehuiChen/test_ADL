@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import os
 import traceback
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,7 @@ from .io_utils import read_json, write_json
 
 
 def _ensure_torch_load_compat() -> None:
-    """兼容旧版 PyTorch 不支持 `weights_only` 参数的情况。"""
+    """Patch torch.load so older checkpoints remain readable across torch versions."""
 
     try:
         import torch
@@ -25,15 +26,16 @@ def _ensure_torch_load_compat() -> None:
     except (TypeError, ValueError):
         return
 
-    if "weights_only" in load_signature.parameters:
-        return
     if getattr(torch.load, "_minimal_adl_weights_only_compat", False):
         return
 
     original_torch_load = torch.load
 
     def _compat_torch_load(*args, **kwargs):
-        kwargs.pop("weights_only", None)
+        if "weights_only" in load_signature.parameters:
+            kwargs.setdefault("weights_only", False)
+        else:
+            kwargs.pop("weights_only", None)
         return original_torch_load(*args, **kwargs)
 
     _compat_torch_load._minimal_adl_weights_only_compat = True  # type: ignore[attr-defined]
@@ -41,36 +43,40 @@ def _ensure_torch_load_compat() -> None:
 
 
 def import_mlatom():
-    """延迟导入 MLatom，避免在当前桌面环境中直接报错。"""
+    """Import MLatom lazily so import failures stay local to MLatom-dependent paths."""
+
+    os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+    _ensure_torch_load_compat()
 
     try:
         import mlatom as ml
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "当前环境无法导入 `mlatom`。请先激活 `ADL_env`，并使用 `import mlatom as ml` 方式检查安装。"
+            "Could not import `mlatom`. Activate the correct ADL environment and verify "
+            "that `import mlatom as ml` works in that shell."
         ) from exc
-    _ensure_torch_load_compat()
     return ml
 
 
 def detect_geometry_format(geometry_path: str | Path) -> str:
-    """根据文件后缀判断 MLatom 读取格式。"""
+    """Return the MLatom geometry format inferred from the file suffix."""
 
     suffix = Path(geometry_path).suffix.lower()
     if suffix == ".xyz":
         return "xyz"
     if suffix == ".json":
         return "json"
-    raise ValueError(f"无法识别的几何文件格式：{geometry_path}")
+    raise ValueError(f"Unsupported geometry file format: {geometry_path}")
 
 
 def create_mlatom_method(method_config: dict[str, Any]):
-    """根据配置创建一个 MLatom 方法对象。"""
+    """Build an MLatom method object from the project config."""
+
     return _create_mlatom_method(method_config)
 
 
 def _normalize_gaussian_method_name(method_name: str) -> str:
-    """把论文/README 常用写法转换成 Gaussian 可识别的关键字写法。"""
+    """Normalize Gaussian route names so common aliases stay accepted."""
 
     route = method_name.strip()
     if not route:
@@ -83,7 +89,7 @@ def _normalize_gaussian_method_name(method_name: str) -> str:
         functional, basis = route.split("/", 1)
 
     normalized_functional = functional.strip()
-    functional_key = normalized_functional.lower().replace("ω", "w")
+    functional_key = normalized_functional.lower().replace("\u03c9", "w")
     gaussian_aliases = {
         "wb97x-d": "wB97XD",
         "wb97xd": "wB97XD",
@@ -100,7 +106,7 @@ def _create_mlatom_method(
     *,
     working_directory: str | Path | None = None,
 ):
-    """根据配置创建一个 MLatom 方法对象。"""
+    """Build an MLatom method object with backend-specific compatibility handling."""
 
     ml = import_mlatom()
     method_name = str(method_config["method"]).strip()
@@ -113,8 +119,6 @@ def _create_mlatom_method(
     if program_name:
         kwargs["program"] = program_name
 
-    # MLatom 3.22 在通用 ml.models.methods(...) 路径下可能提前触发 PySCF 接口导入。
-    # 对于纯 xTB baseline，优先走 xTB 专用接口，避免把不需要的 PySCF 变成硬依赖。
     if method_name.lower() in {"gfn2-xtb", "gfn1-xtb", "ipea1-xtb"} and not method_config.get("program"):
         try:
             xtb_module = importlib.import_module("mlatom.interfaces.xtb_interface")
@@ -129,10 +133,8 @@ def _create_mlatom_method(
                 )
             return xtb_methods(**xtb_kwargs)
         except Exception:  # noqa: BLE001
-            # 如果专用接口不可用，再回退到通用入口，保留原始行为。
             pass
 
-    # 对 Gaussian target，优先走专用接口，并把工作目录固定到样本作业目录，便于保留 .com/.log 做排错。
     if str(program_name).lower() == "gaussian":
         normalized_method_name = _normalize_gaussian_method_name(method_name)
         try:
@@ -158,7 +160,7 @@ def _read_text_tail(path: Path, max_lines: int = 40) -> str:
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except Exception as exc:  # noqa: BLE001
-        return f"<无法读取 {path.name}: {type(exc).__name__}: {exc}>"
+        return f"<Could not read {path.name}: {type(exc).__name__}: {exc}>"
     return "\n".join(lines[-max_lines:])
 
 
@@ -198,7 +200,7 @@ def _extract_energy_and_gradients(
         return energy_value, gradients
 
     debug_lines = [
-        "MLatom 预测完成后未能从 molecule 对象中提取完整的 energy/energy_gradients。",
+        "MLatom prediction finished but the molecule object did not expose both energy and energy_gradients.",
         f"method = {method_config.get('method')}",
         f"program = {method_config.get('program')}",
         f"molecule_attrs = {sorted(molecule.__dict__.keys())}",
@@ -222,7 +224,7 @@ def label_geometry_with_mlatom(
     method_config: dict[str, Any],
     output_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """调用 MLatom 对一个几何做单点能和梯度计算。"""
+    """Run a single-point MLatom label job and return energy/gradient payloads."""
 
     ml = import_mlatom()
     molecule = ml.data.molecule()
@@ -261,7 +263,7 @@ def run_and_save_label_job(
     output_dir: str | Path,
     method_key: str,
 ) -> dict[str, Any]:
-    """执行一个标注任务，并把成功或失败状态写入指定目录。"""
+    """Execute one label job and always write status plus label JSON files."""
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -305,7 +307,7 @@ def build_molecular_database_from_dataset(
     npz_path: str | Path,
     metadata_path: str | Path,
 ):
-    """把统一数据集转换成 MLatom 可训练的 molecular_database。"""
+    """Convert the unified delta dataset into an MLatom molecular_database."""
 
     ml = import_mlatom()
     dataset = np.load(npz_path, allow_pickle=True)
@@ -327,7 +329,10 @@ def build_molecular_database_from_dataset(
 
         reference_force = np.asarray(dataset["F_target"][index], dtype=float)
         baseline_force = np.asarray(dataset["F_baseline"][index], dtype=float)
-        delta_force = np.asarray(dataset["delta_F"][index], dtype=float)
+        if "F_delta" in dataset:
+            delta_force = np.asarray(dataset["F_delta"][index], dtype=float)
+        else:
+            delta_force = np.asarray(dataset["delta_F"][index], dtype=float)
 
         molecule.add_xyz_vectorial_property(-reference_force, "reference_energy_gradients")
         molecule.add_xyz_vectorial_property(-baseline_force, "baseline_energy_gradients")
@@ -337,18 +342,26 @@ def build_molecular_database_from_dataset(
     return molecular_database
 
 
-def build_molecular_database_from_geometry_manifest(manifest_path: str | Path):
-    """把未标注的几何池转成 MLatom 的 molecular_database。"""
+def build_molecular_database_from_geometry_manifest(
+    manifest_path: str | Path,
+    *,
+    project_root: str | Path | None = None,
+):
+    """Convert an unlabeled geometry manifest into an MLatom molecular_database."""
 
     ml = import_mlatom()
     entries = load_manifest(manifest_path)
     molecular_database = ml.data.molecular_database()
-    manifest_root = Path(manifest_path).resolve().parent.parent.parent
+    project_root_path = Path(project_root).resolve() if project_root is not None else None
 
     for entry in entries:
         geometry_file = Path(entry["geometry_file"])
         if not geometry_file.is_absolute():
-            geometry_file = manifest_root / geometry_file
+            if project_root_path is None:
+                raise ValueError(
+                    "Relative geometry paths in manifests require project_root so they can be resolved reliably."
+                )
+            geometry_file = project_root_path / geometry_file
         molecule = ml.data.molecule()
         molecule.load(str(geometry_file), format=detect_geometry_format(geometry_file))
         molecule.id = entry["sample_id"]
