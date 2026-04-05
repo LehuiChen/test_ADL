@@ -286,11 +286,13 @@ class DeltaMLModel(ml.al_utils.ml_model):
                 model.model_file = saved_path
                 model.kreg_api.save_model(model.model_file)
             elif ml_model_type.casefold() == "mace":
+                mace_hyperparameters = self._build_mace_batch_hyperparameters(subtraindb_copy, valdb_copy)
                 model.train(
                     molecular_database=subtraindb_copy,
                     validation_molecular_database=valdb_copy,
                     property_to_learn="delta_energy",
                     xyz_derivative_property_to_learn="delta_energy_gradients",
+                    hyperparameters=mace_hyperparameters,
                 )
             else:
                 raise ValueError(f"当前未实现的主模型类型：{ml_model_type}")
@@ -316,13 +318,33 @@ class DeltaMLModel(ml.al_utils.ml_model):
                 model.model_file = saved_path
                 model.kreg_api.save_model(model.model_file)
             elif ml_model_type.casefold() == "mace":
+                mace_hyperparameters = self._build_mace_batch_hyperparameters(subtraindb_copy, valdb_copy)
                 model.train(
                     molecular_database=subtraindb_copy,
                     validation_molecular_database=valdb_copy,
                     property_to_learn="delta_energy",
+                    hyperparameters=mace_hyperparameters,
                 )
             else:
                 raise ValueError(f"当前未实现的辅助模型类型：{ml_model_type}")
+
+    @staticmethod
+    def _build_mace_batch_hyperparameters(subtraindb, valdb) -> dict[str, int]:
+        """Select safe MACE batch sizes for small datasets."""
+
+        train_size = len(subtraindb)
+        valid_size = len(valdb)
+        if train_size < 1 or valid_size < 1:
+            raise RuntimeError(
+                f"MACE training requires non-empty train/valid sets, got train={train_size}, valid={valid_size}"
+            )
+
+        # MLatom MACE uses drop_last=True for training loader.
+        # Keep batch_size <= train_size to avoid empty batches (torch.cat([]) crash).
+        return {
+            "batch_size": min(10, train_size),
+            "valid_batch_size": min(10, valid_size),
+        }
 
     @staticmethod
     def _safe_float(value: Any) -> float | None:
